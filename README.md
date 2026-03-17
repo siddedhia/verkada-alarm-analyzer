@@ -1,4 +1,4 @@
-# Verkada Alarm Analyzer `v0.1`
+# Verkada Alarm Analyzer `v0.2`
 
 A client-side dashboard for analyzing Verkada Command alarm event CSV exports. Upload your CSV and instantly see which sites and devices are driving alarm volume — with enforcement risk tracking and actionable recommendations.
 
