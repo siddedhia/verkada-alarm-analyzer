@@ -148,6 +148,20 @@ tr:hover td{background:#F8FAFC}
 .search-box{padding:8px 12px;border:1.5px solid #E2E8F0;border-radius:8px;font-size:13px;width:250px;outline:none;transition:border-color .2s}
 .search-box:focus{border-color:#2563EB}
 
+/* ─── ENFORCEMENT ────────────────────────────────────────────────── */
+.enf-badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:10.5px;font-weight:700}
+.enf-ok{background:#ECFDF5;color:#059669}
+.enf-warn1{background:#FFFBEB;color:#D97706}
+.enf-warn2{background:#FEF2F2;color:#DC2626}
+.enf-active{background:#DC2626;color:white}
+.enf-month-count{display:inline-block;min-width:28px;text-align:center;padding:2px 6px;border-radius:6px;font-size:11px;font-weight:700;margin:0 2px}
+.enf-over{background:#FEF2F2;color:#DC2626}
+.enf-under{background:#ECFDF5;color:#059669}
+.enf-summary{display:flex;gap:14px;margin-bottom:14px;flex-wrap:wrap}
+.enf-stat{background:#F8FAFC;border-radius:10px;padding:10px 16px;border:1px solid #E8EEF4;text-align:center}
+.enf-stat-val{font-size:22px;font-weight:800;color:#0A1929}
+.enf-stat-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#94A3B8;margin-top:2px}
+
 /* ─── SITE PICKER ────────────────────────────────────────────────── */
 .site-picker-wrap{display:flex;align-items:center;gap:8px}
 .site-picker-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#94A3B8}
@@ -286,6 +300,17 @@ tr:hover td{background:#F8FAFC}
       <div class="sc-val" id="statDispatch">—</div>
       <div class="sc-sub" id="statDispatchSub">—</div>
     </div>
+  </div>
+
+  <!-- ── ENFORCEMENT RISK ── -->
+  <div class="section">
+    <div class="section-header">
+      <div>
+        <div class="section-title">🚨 Enforcement Risk Monitor</div>
+        <div class="section-sub">15 alarm/site/month limit · Self-monitored alarms excluded from count · 3 consecutive months over limit = enforcement</div>
+      </div>
+    </div>
+    <div id="enforcementContent"></div>
   </div>
 
   <!-- ── SECTION 1: TOP SITES ── -->
@@ -521,6 +546,7 @@ function updateDashboard(mk) {
   activeMonth = mk;
   filteredData = mk==='all' ? allData : allData.filter(r=>r.monthKey===mk);
   updateSummary();
+  renderEnforcement();
   renderSites();
   populateDeviceSitePicker();
   renderDevices();
@@ -528,6 +554,92 @@ function updateDashboard(mk) {
   renderTimeAnalysis();
   renderSuggestions();
   renderTable();
+}
+
+// ═══ ENFORCEMENT RISK ══════════════════════════════════════════════════
+function renderEnforcement() {
+  // Use allData to compute enforcement across all months
+  const LIMIT = 15;
+  const months = [...new Set(allData.map(r=>r.monthKey))].sort();
+  const sites = [...new Set(allData.map(r=>r.site))];
+
+  // Count non-self-monitored alarms per site per month
+  const siteMonthlyCounts = {};
+  allData.forEach(r=>{
+    if (r.alarmResponse.toLowerCase().includes('self monitor')) return;
+    const k = r.site;
+    if (!siteMonthlyCounts[k]) siteMonthlyCounts[k] = {};
+    siteMonthlyCounts[k][r.monthKey] = (siteMonthlyCounts[k][r.monthKey]||0) + 1;
+  });
+
+  // Calculate consecutive months over limit and enforcement status per site
+  const siteStatus = sites.map(site=>{
+    const mc = siteMonthlyCounts[site] || {};
+    let consecutive = 0;
+    let status = 'ok';
+    const monthlyCounts = months.map(m=>({month:m, count:mc[m]||0, over:(mc[m]||0)>LIMIT}));
+
+    // Walk through months in order to find consecutive over-limit streak
+    for (const m of monthlyCounts) {
+      if (m.over) {
+        consecutive++;
+      } else {
+        consecutive = 0;
+      }
+    }
+
+    if (consecutive >= 3) status = 'active';
+    else if (consecutive === 2) status = 'warn2';
+    else if (consecutive === 1) status = 'warn1';
+
+    const totalCountable = Object.values(mc).reduce((a,b)=>a+b,0);
+    const latestMonth = months[months.length-1];
+    const latestCount = mc[latestMonth] || 0;
+
+    return { site, consecutive, status, monthlyCounts, totalCountable, latestCount };
+  });
+
+  // Sort: enforcement active first, then warn2, warn1, ok
+  const order = {active:0, warn2:1, warn1:2, ok:3};
+  siteStatus.sort((a,b)=>order[a.status]-order[b.status] || b.latestCount-a.latestCount);
+
+  const atRisk = siteStatus.filter(s=>s.status!=='ok');
+  const enforced = siteStatus.filter(s=>s.status==='active');
+  const overLimit = siteStatus.filter(s=>s.latestCount>LIMIT);
+
+  const statusLabels = {
+    ok:'<span class="enf-badge enf-ok">Under Limit</span>',
+    warn1:'<span class="enf-badge enf-warn1">Over Limit — Month 1</span>',
+    warn2:'<span class="enf-badge enf-warn2">Over Limit — Month 2</span>',
+    active:'<span class="enf-badge enf-active">Enforcement Active</span>'
+  };
+
+  let html = `<div class="enf-summary">
+    <div class="enf-stat"><div class="enf-stat-val">${overLimit.length}</div><div class="enf-stat-label">Sites Over 15 (Latest Month)</div></div>
+    <div class="enf-stat"><div class="enf-stat-val">${atRisk.length}</div><div class="enf-stat-label">Sites At Risk</div></div>
+    <div class="enf-stat"><div class="enf-stat-val">${enforced.length}</div><div class="enf-stat-label">Enforcement Active</div></div>
+  </div>`;
+
+  // Show at-risk + top over-limit sites
+  const showSites = siteStatus.filter(s=>s.status!=='ok' || s.latestCount>LIMIT).slice(0,20);
+  if (showSites.length) {
+    html += `<div class="ranked-table-wrap"><table class="ranked-table"><thead><tr>
+      <th>Site</th><th>Status</th><th>Consecutive Months Over</th>`;
+    months.forEach(m=>{ html+=`<th style="text-align:center">${allData.find(r=>r.monthKey===m)?.monthLabel.split(' ')[0]||m}</th>`; });
+    html += `</tr></thead><tbody>`;
+    showSites.forEach(s=>{
+      html += `<tr><td class="rank-name">${trunc(s.site,40)}</td><td>${statusLabels[s.status]}</td><td style="text-align:center;font-weight:700">${s.consecutive}</td>`;
+      s.monthlyCounts.forEach(m=>{
+        html += `<td style="text-align:center"><span class="enf-month-count ${m.over?'enf-over':'enf-under'}">${m.count}</span></td>`;
+      });
+      html += `</tr>`;
+    });
+    html += `</tbody></table></div>`;
+  } else {
+    html += `<div style="text-align:center;padding:20px;color:#64748B;font-size:13px">All sites are under the 15 alarm/month limit.</div>`;
+  }
+
+  $('enforcementContent', html);
 }
 
 // ═══ SUMMARY ══════════════════════════════════════════════════════════
@@ -753,103 +865,127 @@ function heatColor(v,max){ if(!max||!v) return '#F1F5F9'; const t=v/max; const f
 function r(a,b,t){ return Math.round(a+t*(b-a)); }
 
 // ═══ SUGGESTIONS ══════════════════════════════════════════════════════
+// Root causes from Verkada Alarm Limit Enforcement framework:
+// 1. Camera Misconfiguration  2. Authorized Activity  3. Schedule/Arm-Disarm Hygiene
+// 4. Perimeter/Outdoor Monitoring  5. Bad Installs/Noisy Sensors
+// 6. Testing  7. Response Level Mismatch
 function renderSuggestions() {
   const d = filteredData;
   const sugs = [];
   const siteCounts = countBy(d,'site');
-  const devCounts  = countBy(d,'deviceName');
-  const avgSite    = d.length / Math.max(1,Object.keys(siteCounts).length);
-  const hrs        = Array(24).fill(0); d.forEach(r=>hrs[r.hour]++);
-  const earlyMorn  = d.filter(r=>r.hour>=4&&r.hour<7).length;
-  const lateNight  = d.filter(r=>r.hour<4).length;
-  const evening    = d.filter(r=>r.hour>=17&&r.hour<21).length;
-  const wknd       = d.filter(r=>r.isWeekend).length;
-  const wkdy       = d.length - wknd;
-  const extCount   = d.filter(r=>r.partition.toLowerCase().includes('exterior')).length;
-  const ptzCount   = d.filter(r=>r.deviceName.toUpperCase().includes('PTZ')).length;
+  const avgSite = d.length / Math.max(1,Object.keys(siteCounts).length);
 
-  // Build devSites map
+  // Precompute data slices
+  const extCount = d.filter(r=>r.partition.toLowerCase().includes('exterior')).length;
+  const intCount = d.filter(r=>r.partition.toLowerCase().includes('interior')).length;
+  const sensorAlarms = d.filter(r=>r.deviceType.toLowerCase().includes('sensor'));
+  const cameraAlarms = d.filter(r=>r.deviceType.toLowerCase().includes('camera'));
+  const businessHrs = d.filter(r=>r.hour>=7&&r.hour<18).length;
+  const afterHrs = d.filter(r=>r.hour<7||r.hour>=18).length;
+  const wknd = d.filter(r=>r.isWeekend).length;
+  const wkdy = d.length - wknd;
+  const selfMon = d.filter(r=>r.alarmResponse.toLowerCase().includes('self monitor')).length;
+  const vidVerify = d.filter(r=>r.alarmResponse.toLowerCase().includes('video verification')).length;
+  const dispCount = d.filter(r=>r.dispatch.toLowerCase()==='yes').length;
+
+  // Device-site map
   const devSites = {};
   d.forEach(r=>{ if(!devSites[r.deviceName]) devSites[r.deviceName]=new Set(); devSites[r.deviceName].add(r.site); });
 
-  // RULE 1: Early morning surge
-  if (earlyMorn/d.length > 0.18) {
-    sugs.push({p:'high', icon:'⏰', title:'Schedule Early Morning Suppression (4–7 AM)',
-      insight:`<strong>${pct(earlyMorn,d.length)}% of all alarms</strong> fire between 4–7 AM (${earlyMorn.toLocaleString()} alarms). This window likely corresponds to shift starts, gate openings, or dawn lighting changes triggering motion detection.`,
-      action:'Create a 4:00–7:00 AM scheduled suppression or reduced-sensitivity window at your highest-volume sites. Start with the top 10 sites by volume — this could eliminate up to 30% of alarm noise immediately.'
+  // Detect burst patterns (potential testing) — same device, 5+ alarms within 1 hour
+  const devHourCounts = {};
+  d.forEach(r=>{
+    const k = r.site+'||'+r.deviceName+'||'+r.date.toISOString().split('T')[0]+'||'+r.hour;
+    devHourCounts[k] = (devHourCounts[k]||0)+1;
+  });
+  const burstAlarms = Object.values(devHourCounts).filter(v=>v>=5).reduce((a,b)=>a+b,0);
+
+  // ── ROOT CAUSE 1: Camera Misconfiguration ──
+  const extCamAlarms = d.filter(r=>r.deviceType.toLowerCase().includes('camera') && r.partition.toLowerCase().includes('exterior'));
+  if (extCamAlarms.length/d.length > 0.4) {
+    sugs.push({p:'high', icon:'📷', title:'Camera Misconfiguration — Exterior Cameras',
+      insight:`<strong>${pct(extCamAlarms.length,d.length)}%</strong> of alarms come from exterior cameras (${extCamAlarms.length.toLocaleString()} alarms). Common causes: ROIs covering sidewalks or glass windows, person detection in busy public areas, loitering thresholds set too low.`,
+      action:'Tighten ROIs to exclude public paths and glass doors. Switch from Person Detection to Line Crossing at entrances. Use "Show Examples" in Command to review what triggers each camera. For high foot-traffic areas, switch to Loitering detection (1 min+).'
     });
   }
 
-  // RULE 2: Site outliers (>3x average)
+  // ── ROOT CAUSE 2: Authorized Activity ──
+  if (businessHrs/d.length > 0.5) {
+    sugs.push({p:'high', icon:'👷', title:'Authorized Activity Triggering Alarms',
+      insight:`<strong>${pct(businessHrs,d.length)}%</strong> of alarms fire during business hours (7 AM–6 PM). This suggests employees, cleaners, custodians, or delivery staff are triggering alarms during normal operational activity.`,
+      action:'Verify arm/disarm schedules match actual site operating hours. Staff may be unaware they are triggering alarms. Use "Show Examples" to confirm if triggers are authorized personnel. Consider disarming interior partitions during business hours.'
+    });
+  }
+
+  // ── ROOT CAUSE 3: Schedule & Arm/Disarm Hygiene ──
+  // Detect: alarms clustering right after expected opening hours (staff arriving before disarming)
+  const earlyMorn = d.filter(r=>r.hour>=5&&r.hour<8).length;
+  if (earlyMorn/d.length > 0.15) {
+    sugs.push({p:'high', icon:'🔑', title:'Arm/Disarm Schedule Issue (5–8 AM)',
+      insight:`<strong>${pct(earlyMorn,d.length)}%</strong> of alarms fire between 5–8 AM (${earlyMorn.toLocaleString()} alarms). This typically means staff are arriving and triggering alarms before they can disarm the system.`,
+      action:'Increase entry delay to 45–60 seconds to give staff time to reach the keypad. Install BK22 keypad at entrances (not deep inside). Convert "Always Armed" to scheduled arming. Consider AC integration or Command mobile app for remote disarm.'
+    });
+  }
+
+  // Weekend spike as schedule issue
+  const wkndDailyAvg = wknd/2, wkdyDailyAvg = wkdy/5;
+  if (wkndDailyAvg > wkdyDailyAvg * 1.25) {
+    sugs.push({p:'medium', icon:'📅', title:'Weekend Schedule Gap',
+      insight:`Weekend daily average (<strong>${Math.round(wkndDailyAvg)} alarms/day</strong>) is ${(wkndDailyAvg/Math.max(1,wkdyDailyAvg)).toFixed(1)}x the weekday average (${Math.round(wkdyDailyAvg)}/day). Weekend staff (cleaners, custodians) may not have arm/disarm access or awareness.`,
+      action:'Ensure weekend staff have access to disarm (keypad, app, or AC badge). Create weekend-specific schedules. Avoid 24/7 arming on non-panic partitions.'
+    });
+  }
+
+  // ── ROOT CAUSE 4: Perimeter / Outdoor Monitoring ──
+  if (extCount/d.length > 0.6) {
+    sugs.push({p:'medium', icon:'🌳', title:'Perimeter / Outdoor Monitoring Noise',
+      insight:`<strong>${pct(extCount,d.length)}%</strong> of alarms originate from exterior partitions. Unfenced or public-facing areas using alarms generate constant noise from passersby, vehicles, and wildlife.`,
+      action:'Use a layered approach for outdoor areas: Layer 1 — Deterrence at low threshold (person detection / 5–10s loitering with speaker announcement). Layer 2 — Alarm only after sustained loitering (1 min+). This deters without escalating.'
+    });
+  }
+
+  // ── ROOT CAUSE 5: Bad Installs / Noisy Sensors ──
+  if (sensorAlarms.length > 0 && sensorAlarms.length/d.length > 0.15) {
+    // Find top noisy sensor
+    const sensorCombos = {};
+    sensorAlarms.forEach(r=>{ const k=r.site+'||'+r.deviceName; sensorCombos[k]=(sensorCombos[k]||0)+1; });
+    const topSensor = topN(sensorCombos,1)[0];
+    const topLabel = topSensor ? topSensor[0].split('||')[1] : '';
+    sugs.push({p:'high', icon:'🚪', title:'Noisy Sensor Detected',
+      insight:`Sensors account for <strong>${pct(sensorAlarms.length,d.length)}%</strong> of alarms (${sensorAlarms.length.toLocaleString()}).${topLabel?' Top offender: <strong>"'+topLabel+'"</strong> with '+topSensor[1]+' alarms.':''} Common causes: flappy doors, improper sensor placement, or sensors on high-traffic doors.`,
+      action:'Inspect the top sensor devices physically. Check for loose door contacts, doors that don\'t fully close, or sensors mounted on frequently-used doors that should be excluded during business hours.'
+    });
+  }
+
+  // ── ROOT CAUSE 6: Testing ──
+  if (burstAlarms/d.length > 0.05) {
+    sugs.push({p:'medium', icon:'🧪', title:'Possible Testing Activity Detected',
+      insight:`<strong>${burstAlarms.toLocaleString()} alarms</strong> came in bursts (5+ from the same device in a single hour). This pattern often indicates system testing, walk-throughs, or configuration checks that consume the monthly alarm quota.`,
+      action:'Coordinate with site managers to schedule testing during disarmed windows. Switch site to Self-Monitored before testing to avoid counting against the 15-alarm limit. Re-arm after testing is complete.'
+    });
+  }
+
+  // ── ROOT CAUSE 7: Response Level Mismatch ──
+  if (selfMon/d.length > 0.5) {
+    sugs.push({p:'medium', icon:'📱', title:'Response Level Mismatch — High Self-Monitored Volume',
+      insight:`<strong>${pct(selfMon,d.length)}%</strong> of alarms are self-monitored. While self-monitored alarms don't count toward enforcement limits, high volume suggests the site may be using alarms primarily for activity awareness rather than security response.`,
+      action:'Confirm if the goal is monitoring activity vs. security escalation. If activity monitoring, consider using notifications or analytics instead of alarms. If security, evaluate upgrading to Video Verification or Standard response for high-priority zones.'
+    });
+  } else if ((vidVerify+selfMon)/d.length < 0.1 && d.length > 50) {
+    sugs.push({p:'low', icon:'📋', title:'Review Response Levels for High-Volume Sites',
+      insight:`Most alarms use Standard or Immediate Dispatch response. Sites exceeding 15 alarms/month could benefit from switching lower-priority cameras to Video Verification or Self-Monitored to reduce countable alarms.`,
+      action:'Identify cameras triggering the most alarms at over-limit sites. Switch non-critical devices to Self-Monitored (doesn\'t count toward limit) or Video Verification Only. Reserve Standard/Immediate Dispatch for high-security zones.'
+    });
+  }
+
+  // ── Site outliers ──
   const outliers = topN(siteCounts,3).filter(([,v])=>v>avgSite*2.5);
   outliers.slice(0,2).forEach(([site,count])=>{
     sugs.push({p:'high', icon:'🏭', title:`Site Audit Required: ${trunc(site,40)}`,
-      insight:`This site fired <strong>${count} alarms</strong> — <strong>${(count/avgSite).toFixed(1)}×</strong> the average site. It is a significant outlier and warrants hands-on review of camera configurations.`,
-      action:'Schedule an on-site visit to review camera angles, sensitivity settings, and partition zone definitions. Check if cameras face roads, trees, or areas with frequent non-security motion.'
+      insight:`This site fired <strong>${count} alarms</strong> — <strong>${(count/avgSite).toFixed(1)}x</strong> the average. Review the alarm reduction checklist: What type of site? What is triggering false alarms? What are the after-hours patterns? How is the site arming/disarming?`,
+      action:'Step 1: Analyze this site\'s top devices and time patterns. Step 2: Review config — ROIs, detection types, schedules. Step 3: Apply fixes — tighten ROIs, adjust schedules, increase entry delay, use Line Crossing at entrances.'
     });
   });
-
-  // RULE 3: PTZ cameras
-  if (ptzCount/d.length > 0.1) {
-    sugs.push({p:'high', icon:'📷', title:'PTZ Camera Sensitivity Review',
-      insight:`PTZ cameras account for <strong>${ptzCount.toLocaleString()} alarms (${pct(ptzCount,d.length)}%)</strong>. Wide-angle PTZ cameras covering yards and parking areas are the most common source of false positives — wind, vehicles, and wildlife all trigger them easily.`,
-      action:'Enable person-detection-only mode on all exterior PTZ cameras. Add motion exclusion zones for roadways, fences, and tree lines. Consider requiring 2+ seconds of motion before triggering an alarm.'
-    });
-  }
-
-  // RULE 4: Exterior dominance
-  if (extCount/d.length > 0.78) {
-    sugs.push({p:'medium', icon:'🌳', title:'Exterior Camera Configuration Audit',
-      insight:`<strong>${pct(extCount,d.length)}%</strong> of alarms originate from exterior cameras. Outdoor environments are inherently noisy — wind-blown objects, passing vehicles, and animals are the most common false positive sources.`,
-      action:'Audit all exterior cameras for: (1) motion sensitivity levels — reduce if currently at default, (2) exclusion zones for known non-security motion areas, (3) minimum object size thresholds if supported, (4) person-detection mode where available.'
-    });
-  }
-
-  // RULE 5: Evening pattern
-  if (evening/d.length > 0.2) {
-    sugs.push({p:'medium', icon:'🌆', title:'Evening Activity Pattern (5–9 PM)',
-      insight:`<strong>${pct(evening,d.length)}%</strong> of alarms fire during the 5–9 PM window. This often corresponds to end-of-day activity — employees leaving, gates being secured, vehicles departing.`,
-      action:'Review whether end-of-day site activity can be temporarily excluded via a scheduled exception. Coordinate with site managers on typical close-down times and build those into camera schedules.'
-    });
-  }
-
-  // RULE 6: Widespread device name pattern
-  const widespread = topN(
-    Object.fromEntries(Object.entries(devSites).map(([k,v])=>[k,v.size])), 5
-  ).filter(([,v])=>v>=5);
-  if (widespread.length) {
-    const [dev, siteCount] = widespread[0];
-    sugs.push({p:'medium', icon:'🔁', title:`Global Fix Opportunity: Camera Named "${trunc(dev,30)}"`,
-      insight:`A camera named <strong>"${dev}"</strong> is triggering alarms at <strong>${siteCount} different sites</strong>. This is likely a standard naming convention representing a specific camera type or placement — a single configuration template change could reduce volume across all sites simultaneously.`,
-      action:`Identify the camera model and position associated with "${dev}" across sites. Apply a consistent updated config: increased sensitivity threshold, exclusion zones, or person-detection mode. Push as a bulk update to all ${siteCount} sites.`
-    });
-  }
-
-  // RULE 7: Weekend spike
-  const wkndDailyAvg = wknd/2, wkdyDailyAvg = wkdy/5;
-  if (wkndDailyAvg > wkdyDailyAvg * 1.25) {
-    sugs.push({p:'medium', icon:'📅', title:'Weekend Alarm Spike — Schedule Optimization',
-      insight:`Weekend daily average (<strong>${Math.round(wkndDailyAvg)} alarms/day</strong>) is significantly higher than weekday average (${Math.round(wkdyDailyAvg)}/day). Sites are often understaffed on weekends, creating unusual motion patterns.`,
-      action:'Create weekend-specific alarm schedules with tighter detection zones. Consider higher-confidence thresholds (person detection) on weekends, or route weekend alarms to an on-call team for faster response.'
-    });
-  }
-
-  // RULE 8: Late night
-  if (lateNight/d.length > 0.08) {
-    sugs.push({p:'low', icon:'🌙', title:'Late Night Activity (12–4 AM)',
-      insight:`<strong>${lateNight.toLocaleString()} alarms (${pct(lateNight,d.length)}%)</strong> fire between midnight and 4 AM. While legitimate security events are possible, IR lighting artifacts, wildlife, and weather are common overnight false positive sources.`,
-      action:'Review overnight alarms at the top 5 late-night sites. Enable person-detection-only overnight. Evaluate whether IR camera sensitivity needs tuning for nighttime conditions. Flag any repeat overnight alarms at the same device for immediate camera inspection.'
-    });
-  }
-
-  // RULE 9: Zero dispatch
-  const dispCount = d.filter(r=>r.dispatch.toLowerCase()==='yes').length;
-  if (dispCount === 0) {
-    sugs.push({p:'low', icon:'🚨', title:'Zero Dispatches — Review Escalation Criteria',
-      insight:`<strong>0% of alarms resulted in a dispatch request</strong> in this period. While this may be intentional for self-monitored sites, it also means no alarm has been elevated to emergency services — even potentially legitimate ones.`,
-      action:'Review escalation criteria with the monitoring team. Define clear rules for when an alarm should trigger a dispatch (e.g., alarms outside business hours, multiple triggers in short succession, specific high-security zones). Consider implementing auto-escalation for overnight alarms at critical sites.'
-    });
-  }
 
   const priorityOrder = {high:0, medium:1, low:2};
   sugs.sort((a,b)=>priorityOrder[a.p]-priorityOrder[b.p]);
