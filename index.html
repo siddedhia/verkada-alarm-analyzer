@@ -157,6 +157,8 @@ tr:hover td{background:#F8FAFC}
 .enf-month-count{display:inline-block;min-width:28px;text-align:center;padding:2px 6px;border-radius:6px;font-size:11px;font-weight:700;margin:0 2px}
 .enf-over{background:#FEF2F2;color:#DC2626}
 .enf-under{background:#ECFDF5;color:#059669}
+.enf-avoided{background:#FFFBEB;color:#D97706}
+.enf-month-status{display:block;font-size:9px;font-weight:600;margin-top:2px;letter-spacing:.3px}
 .enf-summary{display:flex;gap:14px;margin-bottom:14px;flex-wrap:wrap}
 .enf-stat{background:#F8FAFC;border-radius:10px;padding:10px 16px;border:1px solid #E8EEF4;text-align:center}
 .enf-stat-val{font-size:22px;font-weight:800;color:#0A1929}
@@ -580,22 +582,35 @@ function renderEnforcement() {
     siteMonthlyCounts[k][r.monthKey] = (siteMonthlyCounts[k][r.monthKey]||0) + 1;
   });
 
-  // Calculate consecutive months over limit up to selected month
+  // Calculate per-month status for each site
   const siteStatus = sites.map(site=>{
     const mc = siteMonthlyCounts[site] || {};
     let consecutive = 0;
-    let status = 'ok';
-    const monthlyCounts = monthsUpTo.map(m=>({month:m, count:mc[m]||0, over:(mc[m]||0)>LIMIT}));
+    const monthlyCounts = monthsUpTo.map((m,i)=>{
+      const count = mc[m]||0;
+      const over = count > LIMIT;
+      const prevConsecutive = consecutive;
+      let mStatus;
+      if (over) {
+        consecutive++;
+        if (consecutive >= 3) mStatus = 'active';
+        else if (consecutive === 2) mStatus = 'warn2';
+        else mStatus = 'warn1';
+      } else {
+        // Under limit this month
+        if (prevConsecutive > 0) {
+          mStatus = 'avoided'; // was over in prior month(s), went under = streak broken
+        } else {
+          mStatus = 'ok';
+        }
+        consecutive = 0;
+      }
+      return { month:m, count, over, mStatus };
+    });
 
-    for (const m of monthlyCounts) {
-      if (m.over) consecutive++;
-      else consecutive = 0;
-    }
-
-    if (consecutive >= 3) status = 'active';
-    else if (consecutive === 2) status = 'warn2';
-    else if (consecutive === 1) status = 'warn1';
-
+    // Final status is based on the last month in the range
+    const lastMStatus = monthlyCounts[monthlyCounts.length-1]?.mStatus || 'ok';
+    let status = lastMStatus === 'avoided' ? 'ok' : lastMStatus;
     const currentCount = mc[currentMonth] || 0;
 
     return { site, consecutive, status, monthlyCounts, currentCount };
@@ -622,16 +637,25 @@ function renderEnforcement() {
     <div class="enf-stat"><div class="enf-stat-val">${enforced.length}</div><div class="enf-stat-label">Enforcement Active</div></div>
   </div>`;
 
-  const showSites = siteStatus.filter(s=>s.status!=='ok' || s.currentCount>LIMIT).slice(0,20);
+  // Show sites that have ever been over limit in any month, or are currently at risk
+  const showSites = siteStatus.filter(s=>s.status!=='ok' || s.currentCount>LIMIT || s.monthlyCounts.some(m=>m.over || m.mStatus==='avoided')).slice(0,30);
   if (showSites.length) {
     html += `<div class="ranked-table-wrap"><table class="ranked-table"><thead><tr>
       <th>Site</th><th>Status</th><th>Consecutive Months Over</th>`;
     monthsUpTo.forEach(m=>{ html+=`<th style="text-align:center">${allData.find(r=>r.monthKey===m)?.monthLabel.split(' ')[0]||m}</th>`; });
     html += `</tr></thead><tbody>`;
+    const monthStatusLabels = {
+      ok:      '<span class="enf-month-status" style="color:#059669">No Risk</span>',
+      warn1:   '<span class="enf-month-status" style="color:#D97706">Over (1st)</span>',
+      warn2:   '<span class="enf-month-status" style="color:#DC2626">Over (2nd)</span>',
+      active:  '<span class="enf-month-status" style="color:#fff;background:#DC2626;border-radius:3px;padding:1px 4px">Enforced</span>',
+      avoided: '<span class="enf-month-status" style="color:#D97706">Streak Reset</span>'
+    };
     showSites.forEach(s=>{
       html += `<tr><td class="rank-name">${trunc(s.site,40)}</td><td>${statusLabels[s.status]}</td><td style="text-align:center;font-weight:700">${s.consecutive}</td>`;
       s.monthlyCounts.forEach(m=>{
-        html += `<td style="text-align:center"><span class="enf-month-count ${m.over?'enf-over':'enf-under'}">${m.count}</span></td>`;
+        const cellCls = m.mStatus==='avoided'?'enf-avoided':m.over?'enf-over':'enf-under';
+        html += `<td style="text-align:center"><span class="enf-month-count ${cellCls}">${m.count}</span>${monthStatusLabels[m.mStatus]||''}</td>`;
       });
       html += `</tr>`;
     });
