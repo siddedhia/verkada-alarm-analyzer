@@ -388,25 +388,7 @@ tr:hover td{background:#F8FAFC}
     </div>
   </div>
 
-  <!-- ── SECTION 4: WORST DEVICE DEEP DIVE ── -->
-  <div class="section">
-    <div class="section-title" style="margin-bottom:4px">🔦 Worst Offender — Deep Dive</div>
-    <div class="section-sub" id="spotlightSub">Detailed analysis of the highest-volume site + device combination</div>
-    <div class="spotlight-grid">
-      <div>
-        <div class="spotlight-stats" id="spotlightStats"></div>
-        <div class="spotlight-rec" id="spotlightRec"></div>
-      </div>
-      <div>
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#94A3B8;margin-bottom:8px">Alarm Distribution by Hour</div>
-        <div class="chart-wrap" style="height:180px"><canvas id="spotlightHourChart"></canvas></div>
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#94A3B8;margin:12px 0 8px">Alarm Distribution by Day</div>
-        <div class="chart-wrap" style="height:120px"><canvas id="spotlightDowChart"></canvas></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── SECTION 5: SUGGESTIONS ── -->
+  <!-- ── SECTION 4: SUGGESTIONS ── -->
   <div class="section">
     <div class="section-title" style="margin-bottom:4px">💡 Actionable Suggestions</div>
     <div class="section-sub">Rule-based recommendations derived from alarm patterns in this dataset</div>
@@ -539,7 +521,6 @@ function updateDashboard(mk) {
   renderSites();
   populateDeviceSitePicker();
   renderDevices();
-  renderSpotlight();
   populateTimeSitePicker();
   renderTimeAnalysis();
   renderSuggestions();
@@ -643,102 +624,6 @@ function renderDevices() {
   }
 
   $('devicesBody', ranked.map((e,i)=>rowHtml(e,i)).join(''));
-}
-
-// ═══ SPOTLIGHT ════════════════════════════════════════════════════════
-function renderSpotlight() {
-  const d = filteredData;
-  // Top site+device combo
-  const comboCounts = {};
-  d.forEach(r=>{ const k=r.site+'|||'+r.deviceName; comboCounts[k]=(comboCounts[k]||0)+1; });
-  const [topCombo, topCount] = topN(comboCounts,1)[0] || ['',0];
-  if (!topCombo) return;
-  const [site, device] = topCombo.split('|||');
-  const comboData = d.filter(r=>r.site===site && r.deviceName===device);
-
-  // Hour dist for this combo
-  const hrs = Array(24).fill(0); comboData.forEach(r=>hrs[r.hour]++);
-  const peakHr = hrs.indexOf(Math.max(...hrs));
-  // DOW dist
-  const days = Array(7).fill(0); comboData.forEach(r=>days[r.dow]++);
-  const wkndCount = comboData.filter(r=>r.isWeekend).length;
-  const avgPerDay = (topCount / Math.max(1, new Set(comboData.map(r=>r.date.toDateString())).size)).toFixed(1);
-
-  $('spotlightSub', `Worst offender: <strong>${trunc(site,50)}</strong> → <strong>${device}</strong>`);
-
-  $('spotlightStats', `
-    <div class="stat-box">
-      <div class="stat-box-label">Total Alarms</div>
-      <div class="stat-box-val">${topCount}</div>
-      <div class="stat-box-sub">${pct(topCount,d.length)}% of period total</div>
-    </div>
-    <div class="stat-box">
-      <div class="stat-box-label">Avg per Active Day</div>
-      <div class="stat-box-val">${avgPerDay}</div>
-      <div class="stat-box-sub">alarms / day</div>
-    </div>
-    <div class="stat-box">
-      <div class="stat-box-label">Peak Hour</div>
-      <div class="stat-box-val">${fmtHr(peakHr)}</div>
-      <div class="stat-box-sub">${hrs[peakHr]} alarms at this hour</div>
-    </div>
-    <div class="stat-box">
-      <div class="stat-box-label">Weekend Share</div>
-      <div class="stat-box-val">${pct(wkndCount,topCount)}%</div>
-      <div class="stat-box-sub">${wkndCount} weekend alarms</div>
-    </div>
-  `);
-
-  // Generate specific recommendation
-  const earlyMorning = comboData.filter(r=>r.hour>=4&&r.hour<7).length;
-  const evening = comboData.filter(r=>r.hour>=17&&r.hour<21).length;
-  const isExterior = comboData[0]?.partition.toLowerCase().includes('exterior');
-  const isPTZ = device.toUpperCase().includes('PTZ');
-
-  let rec = `<div class="spotlight-rec">
-    <div class="spotlight-rec-label">🔧 Recommendation</div>
-    <div class="spotlight-rec-text">`;
-  if (earlyMorning/topCount > 0.25) {
-    rec += `<strong>${pct(earlyMorning,topCount)}% of alarms fire 4–7 AM</strong> — schedule a sensitivity suppression window during early morning hours. `;
-  }
-  if (isPTZ) {
-    rec += `PTZ camera naming suggests wide-angle yard/lot coverage — a prime false positive source. Consider enabling <strong>person-detection only</strong> mode and adding motion exclusion zones for the roadway. `;
-  }
-  if (isExterior && !isPTZ) {
-    rec += `As an exterior camera, it is exposed to wind, wildlife, and passing vehicles. <strong>Raise the motion sensitivity threshold</strong> or require person-detection confirmation before triggering. `;
-  }
-  if (evening/topCount > 0.25) {
-    rec += `<strong>${pct(evening,topCount)}% of alarms occur 5–9 PM</strong> — investigate if this is shift departure/gate traffic that can be scheduled out. `;
-  }
-  rec += `</div></div>`;
-  $('spotlightRec', rec);
-
-  // Render spotlight charts
-  destroyChart('spotlightHourChart');
-  const hCtx = document.getElementById('spotlightHourChart').getContext('2d');
-  charts['spotlightHourChart'] = new Chart(hCtx, {
-    type:'bar',
-    data:{
-      labels: Array.from({length:24},(_,i)=>i%4===0?fmtHrShort(i):''),
-      datasets:[{ data:hrs, backgroundColor: barColorsByIntensity(hrs), borderRadius:3 }]
-    },
-    options:{ responsive:true, maintainAspectRatio:false,
-      plugins:{legend:{display:false}},
-      scales:{x:{grid:{display:false},ticks:{font:{size:9}}},y:{grid:{color:'#F1F5F9'},ticks:{font:{size:9}},min:0}} }
-  });
-
-  destroyChart('spotlightDowChart');
-  const dCtx = document.getElementById('spotlightDowChart').getContext('2d');
-  charts['spotlightDowChart'] = new Chart(dCtx, {
-    type:'bar',
-    data:{
-      labels:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],
-      datasets:[{ data:days, backgroundColor: barColorsByIntensity(days), borderRadius:3 }]
-    },
-    options:{ responsive:true, maintainAspectRatio:false,
-      plugins:{legend:{display:false}},
-      scales:{x:{grid:{display:false},ticks:{font:{size:9}}},y:{grid:{color:'#F1F5F9'},ticks:{font:{size:9}},min:0}} }
-  });
 }
 
 // ═══ TIME ANALYSIS SITE PICKER ════════════════════════════════════════
