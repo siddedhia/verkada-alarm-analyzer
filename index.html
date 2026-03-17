@@ -438,7 +438,7 @@ tr:hover td{background:#F8FAFC}
     <div class="section-header">
       <div>
         <div class="section-title" style="margin-bottom:4px">💡 Actionable Suggestions</div>
-        <div class="section-sub">Rule-based recommendations derived from alarm patterns in this dataset</div>
+        <div class="section-sub">Rule-based recommendations derived from alarm patterns. These are automated suggestions — use your own judgement before making changes.</div>
       </div>
       <div class="site-picker-wrap">
         <label for="sugSitePicker" class="site-picker-label">Site:</label>
@@ -1078,7 +1078,6 @@ function renderSuggestions() {
   $('suggestionsGrid', sugs.map(s=>`
     <div class="sug-card ${colors[s.p]}">
       <div class="sug-header">
-        <div class="sug-icon">${s.icon}</div>
         <div class="sug-title-wrap">
           <div class="sug-priority ${labelCls[s.p]}">${labels[s.p]}</div>
           <div class="sug-title">${s.title}</div>
