@@ -558,12 +558,20 @@ function updateDashboard(mk) {
 
 // ═══ ENFORCEMENT RISK ══════════════════════════════════════════════════
 function renderEnforcement() {
-  // Use allData to compute enforcement across all months
   const LIMIT = 15;
-  const months = [...new Set(allData.map(r=>r.monthKey))].sort();
+  const allMonths = [...new Set(allData.map(r=>r.monthKey))].sort();
   const sites = [...new Set(allData.map(r=>r.site))];
 
-  // Count non-self-monitored alarms per site per month
+  // Determine which months to evaluate up to (based on selected tab)
+  const selectedMonth = activeMonth;
+  const monthsUpTo = selectedMonth === 'all'
+    ? allMonths
+    : allMonths.filter(m => m <= selectedMonth);
+  const currentMonth = selectedMonth === 'all'
+    ? allMonths[allMonths.length-1]
+    : selectedMonth;
+
+  // Count non-self-monitored alarms per site per month (always from allData)
   const siteMonthlyCounts = {};
   allData.forEach(r=>{
     if (r.alarmResponse.toLowerCase().includes('self-monitored')) return;
@@ -572,40 +580,34 @@ function renderEnforcement() {
     siteMonthlyCounts[k][r.monthKey] = (siteMonthlyCounts[k][r.monthKey]||0) + 1;
   });
 
-  // Calculate consecutive months over limit and enforcement status per site
+  // Calculate consecutive months over limit up to selected month
   const siteStatus = sites.map(site=>{
     const mc = siteMonthlyCounts[site] || {};
     let consecutive = 0;
     let status = 'ok';
-    const monthlyCounts = months.map(m=>({month:m, count:mc[m]||0, over:(mc[m]||0)>LIMIT}));
+    const monthlyCounts = monthsUpTo.map(m=>({month:m, count:mc[m]||0, over:(mc[m]||0)>LIMIT}));
 
-    // Walk through months in order to find consecutive over-limit streak
     for (const m of monthlyCounts) {
-      if (m.over) {
-        consecutive++;
-      } else {
-        consecutive = 0;
-      }
+      if (m.over) consecutive++;
+      else consecutive = 0;
     }
 
     if (consecutive >= 3) status = 'active';
     else if (consecutive === 2) status = 'warn2';
     else if (consecutive === 1) status = 'warn1';
 
-    const totalCountable = Object.values(mc).reduce((a,b)=>a+b,0);
-    const latestMonth = months[months.length-1];
-    const latestCount = mc[latestMonth] || 0;
+    const currentCount = mc[currentMonth] || 0;
 
-    return { site, consecutive, status, monthlyCounts, totalCountable, latestCount };
+    return { site, consecutive, status, monthlyCounts, currentCount };
   });
 
-  // Sort: enforcement active first, then warn2, warn1, ok
   const order = {active:0, warn2:1, warn1:2, ok:3};
-  siteStatus.sort((a,b)=>order[a.status]-order[b.status] || b.latestCount-a.latestCount);
+  siteStatus.sort((a,b)=>order[a.status]-order[b.status] || b.currentCount-a.currentCount);
 
   const atRisk = siteStatus.filter(s=>s.status!=='ok');
   const enforced = siteStatus.filter(s=>s.status==='active');
-  const overLimit = siteStatus.filter(s=>s.latestCount>LIMIT);
+  const overLimit = siteStatus.filter(s=>s.currentCount>LIMIT);
+  const monthLabel = selectedMonth === 'all' ? 'Latest Month' : (allData.find(r=>r.monthKey===currentMonth)?.monthLabel || currentMonth);
 
   const statusLabels = {
     ok:'<span class="enf-badge enf-ok">Under Limit</span>',
@@ -615,17 +617,16 @@ function renderEnforcement() {
   };
 
   let html = `<div class="enf-summary">
-    <div class="enf-stat"><div class="enf-stat-val">${overLimit.length}</div><div class="enf-stat-label">Sites Over 15 (Latest Month)</div></div>
+    <div class="enf-stat"><div class="enf-stat-val">${overLimit.length}</div><div class="enf-stat-label">Sites Over 15 (${monthLabel})</div></div>
     <div class="enf-stat"><div class="enf-stat-val">${atRisk.length}</div><div class="enf-stat-label">Sites At Risk</div></div>
     <div class="enf-stat"><div class="enf-stat-val">${enforced.length}</div><div class="enf-stat-label">Enforcement Active</div></div>
   </div>`;
 
-  // Show at-risk + top over-limit sites
-  const showSites = siteStatus.filter(s=>s.status!=='ok' || s.latestCount>LIMIT).slice(0,20);
+  const showSites = siteStatus.filter(s=>s.status!=='ok' || s.currentCount>LIMIT).slice(0,20);
   if (showSites.length) {
     html += `<div class="ranked-table-wrap"><table class="ranked-table"><thead><tr>
       <th>Site</th><th>Status</th><th>Consecutive Months Over</th>`;
-    months.forEach(m=>{ html+=`<th style="text-align:center">${allData.find(r=>r.monthKey===m)?.monthLabel.split(' ')[0]||m}</th>`; });
+    monthsUpTo.forEach(m=>{ html+=`<th style="text-align:center">${allData.find(r=>r.monthKey===m)?.monthLabel.split(' ')[0]||m}</th>`; });
     html += `</tr></thead><tbody>`;
     showSites.forEach(s=>{
       html += `<tr><td class="rank-name">${trunc(s.site,40)}</td><td>${statusLabels[s.status]}</td><td style="text-align:center;font-weight:700">${s.consecutive}</td>`;
@@ -636,7 +637,7 @@ function renderEnforcement() {
     });
     html += `</tbody></table></div>`;
   } else {
-    html += `<div style="text-align:center;padding:20px;color:#64748B;font-size:13px">All sites are under the 15 alarm/month limit.</div>`;
+    html += `<div style="text-align:center;padding:20px;color:#64748B;font-size:13px">All sites are under the 15 alarm/month limit for this period.</div>`;
   }
 
   $('enforcementContent', html);
