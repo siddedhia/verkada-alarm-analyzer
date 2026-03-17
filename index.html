@@ -342,25 +342,7 @@ tr:hover td{background:#F8FAFC}
     </div>
   </div>
 
-  <!-- ── SECTION 3: WORST DEVICE DEEP DIVE ── -->
-  <div class="section">
-    <div class="section-title" style="margin-bottom:4px">🔦 Worst Offender — Deep Dive</div>
-    <div class="section-sub" id="spotlightSub">Detailed analysis of the highest-volume site + device combination</div>
-    <div class="spotlight-grid">
-      <div>
-        <div class="spotlight-stats" id="spotlightStats"></div>
-        <div class="spotlight-rec" id="spotlightRec"></div>
-      </div>
-      <div>
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#94A3B8;margin-bottom:8px">Alarm Distribution by Hour</div>
-        <div class="chart-wrap" style="height:180px"><canvas id="spotlightHourChart"></canvas></div>
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#94A3B8;margin:12px 0 8px">Alarm Distribution by Day</div>
-        <div class="chart-wrap" style="height:120px"><canvas id="spotlightDowChart"></canvas></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── SECTION 4: TIME ANALYSIS ── -->
+  <!-- ── SECTION 3: TIME ANALYSIS ── -->
   <div class="section">
     <div class="section-header">
       <div>
@@ -403,6 +385,24 @@ tr:hover td{background:#F8FAFC}
         <div class="heat-labels"><span>Low</span><span>High</span></div>
       </div>
       <span style="font-size:10.5px;color:#94A3B8">Day label color = alarm volume for that day</span>
+    </div>
+  </div>
+
+  <!-- ── SECTION 4: WORST DEVICE DEEP DIVE ── -->
+  <div class="section">
+    <div class="section-title" style="margin-bottom:4px">🔦 Worst Offender — Deep Dive</div>
+    <div class="section-sub" id="spotlightSub">Detailed analysis of the highest-volume site + device combination</div>
+    <div class="spotlight-grid">
+      <div>
+        <div class="spotlight-stats" id="spotlightStats"></div>
+        <div class="spotlight-rec" id="spotlightRec"></div>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#94A3B8;margin-bottom:8px">Alarm Distribution by Hour</div>
+        <div class="chart-wrap" style="height:180px"><canvas id="spotlightHourChart"></canvas></div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#94A3B8;margin:12px 0 8px">Alarm Distribution by Day</div>
+        <div class="chart-wrap" style="height:120px"><canvas id="spotlightDowChart"></canvas></div>
+      </div>
     </div>
   </div>
 
