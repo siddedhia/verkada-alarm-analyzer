@@ -417,8 +417,16 @@ tr:hover td{background:#F8FAFC}
 
   <!-- ── SECTION 4: SUGGESTIONS ── -->
   <div class="section">
-    <div class="section-title" style="margin-bottom:4px">💡 Actionable Suggestions</div>
-    <div class="section-sub">Rule-based recommendations derived from alarm patterns in this dataset</div>
+    <div class="section-header">
+      <div>
+        <div class="section-title" style="margin-bottom:4px">💡 Actionable Suggestions</div>
+        <div class="section-sub">Rule-based recommendations derived from alarm patterns in this dataset</div>
+      </div>
+      <div class="site-picker-wrap">
+        <label for="sugSitePicker" class="site-picker-label">Site:</label>
+        <select id="sugSitePicker" class="site-picker"></select>
+      </div>
+    </div>
     <div class="suggestions-grid" id="suggestionsGrid"></div>
   </div>
 
@@ -554,6 +562,7 @@ function updateDashboard(mk) {
   renderDevices();
   populateTimeSitePicker();
   renderTimeAnalysis();
+  populateSugSitePicker();
   renderSuggestions();
   renderTable();
 }
@@ -901,12 +910,23 @@ function heatColor(v,max){ if(!max||!v) return '#F1F5F9'; const t=v/max; const f
 function r(a,b,t){ return Math.round(a+t*(b-a)); }
 
 // ═══ SUGGESTIONS ══════════════════════════════════════════════════════
+function populateSugSitePicker() {
+  const picker = document.getElementById('sugSitePicker');
+  const siteCounts = countBy(filteredData,'site');
+  const ranked = topN(siteCounts, 999);
+  const topSite = ranked[0]?.[0] || '';
+  picker.innerHTML = `<option value="all">All Sites (${filteredData.length.toLocaleString()})</option>`
+    + ranked.map(([s,c])=>`<option value="${s.replace(/"/g,'&quot;')}"${s===topSite?' selected':''}>${trunc(s,45)} (${c.toLocaleString()})</option>`).join('');
+}
+document.getElementById('sugSitePicker').addEventListener('change', renderSuggestions);
+
 // Root causes from Verkada Alarm Limit Enforcement framework:
 // 1. Camera Misconfiguration  2. Authorized Activity  3. Schedule/Arm-Disarm Hygiene
 // 4. Perimeter/Outdoor Monitoring  5. Bad Installs/Noisy Sensors
 // 6. Testing  7. Response Level Mismatch
 function renderSuggestions() {
-  const d = filteredData;
+  const sel = document.getElementById('sugSitePicker').value;
+  const d = sel === 'all' ? filteredData : filteredData.filter(r=>r.site===sel);
   const sugs = [];
   const siteCounts = countBy(d,'site');
   const avgSite = d.length / Math.max(1,Object.keys(siteCounts).length);
@@ -1014,14 +1034,16 @@ function renderSuggestions() {
     });
   }
 
-  // ── Site outliers ──
-  const outliers = topN(siteCounts,3).filter(([,v])=>v>avgSite*2.5);
-  outliers.slice(0,2).forEach(([site,count])=>{
-    sugs.push({p:'high', icon:'🏭', title:`Site Audit Required: ${trunc(site,40)}`,
-      insight:`This site fired <strong>${count} alarms</strong> — <strong>${(count/avgSite).toFixed(1)}x</strong> the average. Review the alarm reduction checklist: What type of site? What is triggering false alarms? What are the after-hours patterns? How is the site arming/disarming?`,
-      action:'Step 1: Analyze this site\'s top devices and time patterns. Step 2: Review config — ROIs, detection types, schedules. Step 3: Apply fixes — tighten ROIs, adjust schedules, increase entry delay, use Line Crossing at entrances.'
+  // ── Site outliers (only when viewing all sites) ──
+  if (sel === 'all') {
+    const outliers = topN(siteCounts,3).filter(([,v])=>v>avgSite*2.5);
+    outliers.slice(0,2).forEach(([site,count])=>{
+      sugs.push({p:'high', icon:'🏭', title:`Site Audit Required: ${trunc(site,40)}`,
+        insight:`This site fired <strong>${count} alarms</strong> — <strong>${(count/avgSite).toFixed(1)}x</strong> the average. Review the alarm reduction checklist: What type of site? What is triggering false alarms? What are the after-hours patterns? How is the site arming/disarming?`,
+        action:'Step 1: Analyze this site\'s top devices and time patterns. Step 2: Review config — ROIs, detection types, schedules. Step 3: Apply fixes — tighten ROIs, adjust schedules, increase entry delay, use Line Crossing at entrances.'
+      });
     });
-  });
+  }
 
   const priorityOrder = {high:0, medium:1, low:2};
   sugs.sort((a,b)=>priorityOrder[a.p]-priorityOrder[b.p]);
