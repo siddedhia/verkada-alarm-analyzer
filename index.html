@@ -566,7 +566,7 @@ function renderEnforcement() {
   // Count non-self-monitored alarms per site per month
   const siteMonthlyCounts = {};
   allData.forEach(r=>{
-    if (r.alarmResponse.toLowerCase().includes('self monitor')) return;
+    if (r.alarmResponse.toLowerCase().includes('self-monitored')) return;
     const k = r.site;
     if (!siteMonthlyCounts[k]) siteMonthlyCounts[k] = {};
     siteMonthlyCounts[k][r.monthKey] = (siteMonthlyCounts[k][r.monthKey]||0) + 1;
@@ -895,7 +895,7 @@ function renderSuggestions() {
   const afterHrs = d.filter(r=>r.hour<7||r.hour>=18).length;
   const wknd = d.filter(r=>r.isWeekend).length;
   const wkdy = d.length - wknd;
-  const selfMon = d.filter(r=>r.alarmResponse.toLowerCase().includes('self monitor')).length;
+  const selfMon = d.filter(r=>r.alarmResponse.toLowerCase().includes('self-monitored')).length;
   const vidVerify = d.filter(r=>r.alarmResponse.toLowerCase().includes('video verification')).length;
   const dispCount = d.filter(r=>r.dispatch.toLowerCase()==='yes').length;
 
