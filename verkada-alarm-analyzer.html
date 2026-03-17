@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alarm Events Analyzer</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F0F4F8;color:#1E293B;min-height:100vh}
+
+/* ─── HEADER ─────────────────────────────────────────────────────── */
+.header{background:linear-gradient(135deg,#0A1929 0%,#102A4C 100%);color:white;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 16px rgba(0,0,0,0.3)}
+.header h1{font-size:19px;font-weight:700;display:flex;align-items:center;gap:8px}
+.header .tagline{font-size:11.5px;color:#94A3B8;margin-top:3px}
+.header-right{display:flex;align-items:center;gap:10px}
+.header-badge{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.18);padding:5px 12px;border-radius:20px;font-size:11.5px;color:#CBD5E1}
+.btn-upload-new{padding:6px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.08);color:#CBD5E1;cursor:pointer;font-size:12px;transition:all .2s}
+.btn-upload-new:hover{background:rgba(255,255,255,0.15)}
+
+/* ─── UPLOAD ─────────────────────────────────────────────────────── */
+.upload-section{display:flex;align-items:center;justify-content:center;min-height:calc(100vh - 58px);padding:32px}
+.upload-card{background:white;border-radius:20px;padding:48px 40px;max-width:520px;width:100%;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.1)}
+.upload-icon{width:80px;height:80px;background:#EFF6FF;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 24px;font-size:36px}
+.upload-card h2{font-size:26px;font-weight:800;color:#0A1929;margin-bottom:10px}
+.upload-card > p{color:#64748B;font-size:14px;line-height:1.7;margin-bottom:28px}
+.dropzone{border:2px dashed #CBD5E1;border-radius:14px;padding:30px 20px;cursor:pointer;transition:all .2s;margin-bottom:20px;background:#FAFBFC}
+.dropzone:hover,.dropzone.drag-over{border-color:#2563EB;background:#EFF6FF}
+.dropzone-icon{font-size:30px;margin-bottom:8px}
+.dropzone p{color:#64748B;font-size:15px;font-weight:500}
+.dropzone .hint{font-size:12px;color:#94A3B8;margin-top:4px}
+.upload-btn{display:inline-flex;align-items:center;gap:6px;padding:11px 24px;background:#2563EB;color:white;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s}
+.upload-btn:hover{background:#1D4ED8;transform:translateY(-1px)}
+#fileInput{display:none}
+.field-tags{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;margin-top:14px}
+.ftag{background:#F1F5F9;border-radius:5px;padding:2px 8px;font-size:11px;color:#64748B}
+
+/* ─── DASHBOARD ──────────────────────────────────────────────────── */
+#dashboard{display:none;padding:20px 28px 40px}
+
+/* ─── TOP BAR ────────────────────────────────────────────────────── */
+.dash-topbar{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px}
+.dash-title{font-size:20px;font-weight:800;color:#0A1929}
+.dash-range{font-size:12.5px;color:#64748B;margin-top:3px}
+
+/* ─── MONTH TABS ──────────────────────────────────────────────────── */
+.month-tabs{display:flex;gap:7px;margin-bottom:18px;flex-wrap:wrap}
+.mtab{padding:7px 15px;border-radius:8px;border:1.5px solid #DDE3EC;background:white;cursor:pointer;font-size:12.5px;font-weight:500;color:#64748B;transition:all .15s}
+.mtab.active{background:#2563EB;color:white;border-color:#2563EB;box-shadow:0 2px 8px rgba(37,99,235,.28)}
+.mtab:hover:not(.active){border-color:#B0BEC5;background:#F8FAFC}
+
+/* ─── SUMMARY CARDS ──────────────────────────────────────────────── */
+.scards{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:16px}
+.sc{background:white;border-radius:12px;padding:17px 18px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-top:3px solid}
+.sc-blue{border-color:#2563EB}.sc-amber{border-color:#F59E0B}.sc-green{border-color:#10B981}.sc-red{border-color:#EF4444}
+.sc-label{font-size:10.5px;color:#64748B;font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px}
+.sc-val{font-size:32px;font-weight:800;color:#0A1929;line-height:1;letter-spacing:-1px}
+.sc-sub{font-size:11.5px;color:#94A3B8;margin-top:5px}
+
+/* ─── SECTION HEADERS ────────────────────────────────────────────── */
+.section{background:white;border-radius:14px;padding:20px 22px;box-shadow:0 1px 4px rgba(0,0,0,.07);margin-bottom:14px}
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.section-title{font-size:15px;font-weight:800;color:#0A1929;display:flex;align-items:center;gap:7px}
+.section-sub{font-size:11.5px;color:#94A3B8;margin-bottom:14px}
+
+/* ─── RANKED LIST (sites + devices) ─────────────────────────────── */
+.ranked-table{width:100%;border-collapse:collapse}
+.ranked-table th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94A3B8;padding:0 8px 8px;text-align:left;border-bottom:1.5px solid #E8EEF4}
+.ranked-table td{padding:8px 8px;border-bottom:1px solid #F1F5F9;font-size:12.5px;color:#374151;vertical-align:middle}
+.ranked-table tr:last-child td{border-bottom:none}
+.ranked-table tr:hover td{background:#F8FAFC}
+.rank-num{font-size:11px;font-weight:700;color:#94A3B8;width:28px;text-align:center}
+.rank-name{font-weight:600;color:#1E293B;max-width:240px}
+.mini-bar-wrap{width:120px}
+.mini-bar{height:8px;border-radius:4px;background:#2563EB;transition:width .3s}
+.state-badge{display:inline-block;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;background:#EFF6FF;color:#1D4ED8;margin-right:4px}
+.count-bold{font-weight:700;color:#0A1929}
+.pct-soft{font-size:11px;color:#94A3B8}
+.peak-chip{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;background:#FFFBEB;color:#D97706}
+.sites-chip{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;background:#F5F3FF;color:#7C3AED}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+
+/* ─── WORST DEVICE DEEP DIVE ─────────────────────────────────────── */
+.spotlight-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+.spotlight-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.stat-box{background:#F8FAFC;border-radius:10px;padding:12px 14px;border:1px solid #E8EEF4}
+.stat-box-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#94A3B8;margin-bottom:3px}
+.stat-box-val{font-size:20px;font-weight:800;color:#0A1929}
+.stat-box-sub{font-size:11px;color:#64748B;margin-top:2px}
+.spotlight-rec{background:linear-gradient(135deg,#EFF6FF,#DBEAFE);border-radius:10px;padding:14px 16px;border-left:3px solid #2563EB;margin-top:12px}
+.spotlight-rec-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#2563EB;margin-bottom:4px}
+.spotlight-rec-text{font-size:13px;color:#1E3A5F;line-height:1.55}
+
+/* ─── TIME ANALYSIS ──────────────────────────────────────────────── */
+.time-grid{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:14px}
+.worst-hours-box{background:#FFF7ED;border-radius:10px;padding:14px 16px;border:1.5px solid #FED7AA}
+.worst-hours-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#C2410C;margin-bottom:8px}
+.worst-hour-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.worst-hour-chip{font-weight:700;color:#C2410C;font-size:13px;width:70px;flex-shrink:0}
+.worst-hour-bar{flex:1;height:7px;border-radius:4px;background:#FED7AA}
+.worst-hour-bar-fill{height:100%;border-radius:4px;background:#EA580C}
+.worst-hour-count{font-size:11px;color:#9A3412;width:60px;text-align:right;flex-shrink:0}
+
+/* ─── HEATMAP ─────────────────────────────────────────────────────── */
+.heatmap-scroll{overflow-x:auto;padding-bottom:6px}
+.hmap-hour-row{display:flex;gap:3px;margin-bottom:4px;margin-left:42px}
+.hmap-hlabel{font-size:9px;color:#94A3B8;width:28px;text-align:center;flex-shrink:0}
+.hmap-row{display:flex;align-items:center;gap:3px;margin-bottom:3px}
+.hmap-dlabel{font-size:11px;font-weight:600;color:#64748B;width:38px;text-align:right;padding-right:4px;flex-shrink:0}
+.hmap-cell{width:28px;height:20px;border-radius:3px;flex-shrink:0;cursor:default;position:relative}
+.hmap-cell:hover::after{content:attr(title);position:absolute;bottom:calc(100% + 5px);left:50%;transform:translateX(-50%);background:#1E293B;color:white;padding:4px 8px;border-radius:5px;font-size:10.5px;white-space:nowrap;z-index:99;pointer-events:none}
+.heat-legend{display:flex;align-items:center;gap:8px;margin-top:10px}
+.heat-bar{height:9px;width:150px;border-radius:4px;background:linear-gradient(to right,#EFF6FF,#1D4ED8)}
+.heat-labels{display:flex;justify-content:space-between;width:150px;font-size:10px;color:#94A3B8;margin-top:2px}
+
+/* ─── SUGGESTIONS ────────────────────────────────────────────────── */
+.suggestions-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.sug-card{border-radius:11px;padding:16px 18px;border:1.5px solid}
+.sug-high{background:#FFF1F1;border-color:#FECACA}
+.sug-medium{background:#FFFBEB;border-color:#FDE68A}
+.sug-low{background:#F0FDF4;border-color:#BBF7D0}
+.sug-header{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
+.sug-icon{font-size:20px;flex-shrink:0;margin-top:1px}
+.sug-title-wrap{}
+.sug-priority{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px}
+.sug-priority-high{color:#DC2626}
+.sug-priority-medium{color:#D97706}
+.sug-priority-low{color:#16A34A}
+.sug-title{font-size:13.5px;font-weight:700;color:#1E293B}
+.sug-insight{font-size:12.5px;color:#475569;line-height:1.55;margin-bottom:10px}
+.sug-action-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748B;margin-bottom:3px}
+.sug-action{font-size:12px;color:#374151;line-height:1.5;background:rgba(255,255,255,0.7);border-radius:7px;padding:8px 10px}
+
+/* ─── DATA TABLE ─────────────────────────────────────────────────── */
+.table-wrap{overflow-x:auto;border-radius:9px;border:1px solid #E2E8F0}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:#F8FAFC;padding:9px 11px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#64748B;border-bottom:1.5px solid #E2E8F0;font-weight:700;white-space:nowrap}
+td{padding:7px 11px;border-bottom:1px solid #F1F5F9;color:#374151;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#F8FAFC}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:600}
+.b-blue{background:#EFF6FF;color:#1D4ED8}
+.b-green{background:#ECFDF5;color:#059669}
+.b-red{background:#FEF2F2;color:#DC2626}
+.b-gray{background:#F1F5F9;color:#475569}
+.table-controls{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.search-box{padding:8px 12px;border:1.5px solid #E2E8F0;border-radius:8px;font-size:13px;width:250px;outline:none;transition:border-color .2s}
+.search-box:focus{border-color:#2563EB}
+
+/* ─── SITE PICKER ────────────────────────────────────────────────── */
+.site-picker-wrap{display:flex;align-items:center;gap:8px}
+.site-picker-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#94A3B8}
+.site-picker{padding:6px 12px;border:1.5px solid #E2E8F0;border-radius:8px;font-size:12.5px;color:#374151;background:white;outline:none;max-width:300px;cursor:pointer;transition:border-color .2s}
+.site-picker:focus{border-color:#2563EB}
+
+/* ─── CHART CONTAINER ────────────────────────────────────────────── */
+.chart-wrap{position:relative}
+
+/* ─── RESPONSIVE ─────────────────────────────────────────────────── */
+
+/* Ranked tables scroll horizontally on small screens */
+.ranked-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+@media(max-width:960px){
+  .scards{grid-template-columns:repeat(2,1fr)}
+  .two-col,.spotlight-grid,.time-grid,.suggestions-grid{grid-template-columns:1fr}
+  #dashboard{padding:14px 14px 32px}
+  .section-header{flex-wrap:wrap;gap:10px}
+  .site-picker-wrap{width:100%}
+  .site-picker{width:100%;max-width:100%}
+}
+
+@media(max-width:600px){
+  .scards{grid-template-columns:1fr}
+  .header{flex-direction:column;align-items:flex-start;gap:8px;padding:12px 16px}
+  .header h1{font-size:15px}
+  .header .tagline{font-size:10.5px}
+  .header-right{width:100%;justify-content:space-between}
+  .header-badge{display:none}
+  #dashboard{padding:10px 10px 28px}
+  .dash-topbar{flex-direction:column;gap:6px}
+  .dash-title{font-size:17px}
+  .month-tabs{gap:5px}
+  .mtab{padding:6px 10px;font-size:11px}
+  .section{padding:14px 12px;border-radius:10px}
+  .section-title{font-size:13.5px}
+  .section-header{flex-direction:column;align-items:flex-start;gap:8px}
+  .sc-val{font-size:24px}
+  .sc{padding:12px 14px}
+  .ranked-table th,.ranked-table td{padding:6px 6px;font-size:11px}
+  .rank-name{max-width:140px}
+  .mini-bar-wrap{width:60px}
+  .spotlight-grid{grid-template-columns:1fr}
+  .spotlight-stats{grid-template-columns:1fr 1fr}
+  .stat-box-val{font-size:17px}
+  .time-grid{grid-template-columns:1fr}
+  .suggestions-grid{grid-template-columns:1fr}
+  .sug-card{padding:12px 14px}
+  .table-controls{flex-direction:column;align-items:stretch;gap:10px}
+  .search-box{width:100%}
+  .upload-card{padding:28px 20px}
+  .upload-card h2{font-size:20px}
+  .dropzone{padding:20px 14px}
+  .hmap-cell{width:20px;height:16px}
+  .hmap-hlabel{width:20px;font-size:8px}
+  .hmap-hour-row{margin-left:32px;gap:2px}
+  .hmap-row{gap:2px}
+  .hmap-dlabel{width:32px;font-size:10px}
+}
+
+@media(max-width:380px){
+  .scards{grid-template-columns:1fr}
+  .spotlight-stats{grid-template-columns:1fr}
+  .field-tags{gap:3px}
+  .ftag{font-size:10px}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════ HEADER ══════════════════════════════════ -->
+<div class="header">
+  <div>
+    <h1>🔔 Alarm Events Analyzer</h1>
+    <div class="tagline">Upload a Verkada alarm CSV export · Instant site, device & time analysis</div>
+  </div>
+  <div class="header-right">
+    <span class="header-badge">Powered by Claude</span>
+    <button class="btn-upload-new" id="uploadNewBtn" style="display:none" onclick="resetUpload()">⬆ New File</button>
+  </div>
+</div>
+
+<!-- ══════════════════════ UPLOAD ══════════════════════════════════ -->
+<div class="upload-section" id="uploadSection">
+  <div class="upload-card">
+    <div class="upload-icon">📊</div>
+    <h2>Analyze Alarm Data</h2>
+    <p>Upload your Verkada Command alarm events CSV to instantly see which sites and devices are driving alarm volume — with actionable recommendations.</p>
+    <div class="dropzone" id="dropzone">
+      <div class="dropzone-icon">📁</div>
+      <p>Drag &amp; drop your CSV here</p>
+      <div class="hint">or click the button below</div>
+    </div>
+    <button class="upload-btn" onclick="document.getElementById('fileInput').click()">⬆ Choose CSV File</button>
+    <input type="file" id="fileInput" accept=".csv">
+    <div class="field-tags">
+      <span class="ftag">Date</span><span class="ftag">Site</span><span class="ftag">Partition</span>
+      <span class="ftag">Device Name</span><span class="ftag">Device Type</span>
+      <span class="ftag">Alarm Response</span><span class="ftag">Dispatch Requested</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ DASHBOARD ═══════════════════════════════ -->
+<div id="dashboard">
+
+  <div class="dash-topbar">
+    <div>
+      <div class="dash-title" id="reportTitle">Alarm Analysis Report</div>
+      <div class="dash-range" id="dateRange"></div>
+    </div>
+  </div>
+
+  <!-- Month tabs -->
+  <div class="month-tabs" id="monthTabs"></div>
+
+  <!-- Summary cards -->
+  <div class="scards">
+    <div class="sc sc-blue">
+      <div class="sc-label">Total Alarms</div>
+      <div class="sc-val" id="statTotal">—</div>
+      <div class="sc-sub" id="statTotalSub">—</div>
+    </div>
+    <div class="sc sc-amber">
+      <div class="sc-label">Active Sites</div>
+      <div class="sc-val" id="statSites">—</div>
+      <div class="sc-sub" id="statSitesSub">—</div>
+    </div>
+    <div class="sc sc-green">
+      <div class="sc-label">Unique Devices</div>
+      <div class="sc-val" id="statDevices">—</div>
+      <div class="sc-sub" id="statDevicesSub">—</div>
+    </div>
+    <div class="sc sc-red">
+      <div class="sc-label">Dispatch Requested</div>
+      <div class="sc-val" id="statDispatch">—</div>
+      <div class="sc-sub" id="statDispatchSub">—</div>
+    </div>
+  </div>
+
+  <!-- ── SECTION 1: TOP SITES ── -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">📍 Top Alarming Sites</div>
+    </div>
+    <div class="section-sub">Ranked by alarm count · Shows top device and peak hour per site</div>
+    <div class="ranked-table-wrap">
+      <table class="ranked-table" id="sitesTable">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Site</th>
+            <th>Alarms</th>
+            <th>%</th>
+            <th>Top Device</th>
+            <th>Type</th>
+            <th>Peak Hour</th>
+            <th style="width:120px">Volume</th>
+          </tr>
+        </thead>
+        <tbody id="sitesBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── SECTION 2: TOP DEVICES ── -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">📷 Top Alarming Devices (Cameras & Sensors)</div>
+      <div class="site-picker-wrap">
+        <label for="deviceSitePicker" class="site-picker-label">Site:</label>
+        <select id="deviceSitePicker" class="site-picker"></select>
+      </div>
+    </div>
+    <div class="section-sub">Each device is unique per site · Ranked by alarm count</div>
+    <div class="ranked-table-wrap">
+      <table class="ranked-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Device Name</th>
+            <th>Type</th>
+            <th>Site</th>
+            <th>Alarms</th>
+            <th>%</th>
+            <th>Peak Hour</th>
+            <th style="width:120px">Volume</th>
+          </tr>
+        </thead>
+        <tbody id="devicesBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── SECTION 3: WORST DEVICE DEEP DIVE ── -->
+  <div class="section">
+    <div class="section-title" style="margin-bottom:4px">🔦 Worst Offender — Deep Dive</div>
+    <div class="section-sub" id="spotlightSub">Detailed analysis of the highest-volume site + device combination</div>
+    <div class="spotlight-grid">
+      <div>
+        <div class="spotlight-stats" id="spotlightStats"></div>
+        <div class="spotlight-rec" id="spotlightRec"></div>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#94A3B8;margin-bottom:8px">Alarm Distribution by Hour</div>
+        <div class="chart-wrap" style="height:180px"><canvas id="spotlightHourChart"></canvas></div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#94A3B8;margin:12px 0 8px">Alarm Distribution by Day</div>
+        <div class="chart-wrap" style="height:120px"><canvas id="spotlightDowChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SECTION 4: TIME ANALYSIS ── -->
+  <div class="section">
+    <div class="section-header">
+      <div>
+        <div class="section-title" style="margin-bottom:4px">🕐 Time Analysis</div>
+        <div class="section-sub">When are alarms firing? Bar color intensity reflects alarm volume</div>
+      </div>
+      <div class="site-picker-wrap">
+        <label for="timeSitePicker" class="site-picker-label">Site:</label>
+        <select id="timeSitePicker" class="site-picker"></select>
+      </div>
+    </div>
+    <div class="time-grid" style="margin-bottom:16px">
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#94A3B8;margin-bottom:8px">Alarms by Hour of Day (local time)</div>
+        <div class="chart-wrap" style="height:200px"><canvas id="hoursChart"></canvas></div>
+      </div>
+      <div>
+        <div class="worst-hours-box">
+          <div class="worst-hours-label">⚡ Worst Hours Ranked</div>
+          <div id="worstHoursContent"></div>
+        </div>
+      </div>
+    </div>
+    <div class="two-col" style="margin-bottom:16px">
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#94A3B8;margin-bottom:8px">Alarms by Day of Week</div>
+        <div class="chart-wrap" style="height:180px"><canvas id="dowChart"></canvas></div>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#94A3B8;margin-bottom:8px">Daily Trend</div>
+        <div class="chart-wrap" style="height:180px"><canvas id="trendChart"></canvas></div>
+      </div>
+    </div>
+    <!-- Heatmap -->
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#94A3B8;margin-bottom:8px">Alarm Heatmap — Day × Hour (hover for count)</div>
+    <div class="heatmap-scroll" id="heatmapWrap"></div>
+    <div class="heat-legend">
+      <div>
+        <div class="heat-bar"></div>
+        <div class="heat-labels"><span>Low</span><span>High</span></div>
+      </div>
+      <span style="font-size:10.5px;color:#94A3B8">Day label color = alarm volume for that day</span>
+    </div>
+  </div>
+
+  <!-- ── SECTION 5: SUGGESTIONS ── -->
+  <div class="section">
+    <div class="section-title" style="margin-bottom:4px">💡 Actionable Suggestions</div>
+    <div class="section-sub">Rule-based recommendations derived from alarm patterns in this dataset</div>
+    <div class="suggestions-grid" id="suggestionsGrid"></div>
+  </div>
+
+  <!-- ── DATA TABLE ── -->
+  <div class="section">
+    <div class="table-controls">
+      <div>
+        <div class="section-title">📋 Alarm Records</div>
+        <div class="section-sub" id="tableCaption" style="margin-bottom:0">Showing most recent 200 records</div>
+      </div>
+      <input type="text" class="search-box" id="tableSearch" placeholder="🔍 Search site, device, partition…">
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date &amp; Time</th><th>Site</th><th>Partition</th>
+            <th>Device Name</th><th>Type</th><th>Response</th><th>Dispatch</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /dashboard -->
+
+<!-- ══════════════════════ SCRIPT ═══════════════════════════════════ -->
+<script>
+// ═══ STATE ═══════════════════════════════════════════════════════════
+let allData = [], filteredData = [], charts = {}, activeMonth = 'all';
+
+// ═══ UPLOAD ══════════════════════════════════════════════════════════
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+dropzone.addEventListener('drop', e => { e.preventDefault(); dropzone.classList.remove('drag-over'); if(e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', () => { if(fileInput.files[0]) processFile(fileInput.files[0]); });
+
+function resetUpload() {
+  document.getElementById('uploadSection').style.display = 'flex';
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('uploadNewBtn').style.display = 'none';
+  Object.values(charts).forEach(c => c.destroy()); charts = {};
+  allData = []; filteredData = []; fileInput.value = '';
+}
+
+// ═══ PARSE ═══════════════════════════════════════════════════════════
+function processFile(file) {
+  Papa.parse(file, {
+    header: true, skipEmptyLines: true,
+    complete(res) {
+      allData = res.data.map(parseRow).filter(Boolean);
+      if (!allData.length) { alert('No valid rows found. Check CSV format.'); return; }
+      document.getElementById('uploadSection').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+      document.getElementById('uploadNewBtn').style.display = 'inline-block';
+      buildMonthTabs();
+      updateDashboard('all');
+    },
+    error(e) { alert('CSV parse error: ' + e.message); }
+  });
+}
+
+function parseRow(row) {
+  const ds = (row['Date'] || row['date'] || '').trim();
+  if (!ds) return null;
+  const m = ds.match(/(\d{1,2})\/(\d{1,2})\/(\d{4}),\s*(\d+):(\d{2}):(\d{2})\s*(AM|PM)/i);
+  if (!m) return null;
+  let [,mo,dy,yr,hr,mn,,ap] = m;
+  hr = +hr;
+  if (ap.toUpperCase()==='PM' && hr!==12) hr+=12;
+  if (ap.toUpperCase()==='AM' && hr===12) hr=0;
+  const date = new Date(+yr, +mo-1, +dy, hr, +mn, 0);
+  const dow  = date.getDay();
+  const site = (row['Site']||'').trim();
+  const stateM = site.match(/^([A-Z]{2})\s/);
+  return {
+    date, monthKey:`${yr}-${String(mo).padStart(2,'0')}`,
+    monthLabel: date.toLocaleString('default',{month:'long',year:'numeric'}),
+    hour:hr, dow, isWeekend:(dow===0||dow===6),
+    dateStr: date.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
+    timeStr: date.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}),
+    site, state: stateM?stateM[1]:'?',
+    partition:   (row['Partition']||'').trim(),
+    deviceName:  (row['Device Name']||'').trim(),
+    deviceType:  (row['Device Type']||'').trim(),
+    alarmResponse:(row['Alarm Response']||'').trim(),
+    dispatch:    (row['Dispatch Requested']||'').trim(),
+  };
+}
+
+// ═══ MONTH TABS ═══════════════════════════════════════════════════════
+function buildMonthTabs() {
+  const months = [...new Set(allData.map(r=>r.monthKey))].sort();
+  const c = document.getElementById('monthTabs');
+  c.innerHTML = '';
+  const allBtn = mkTab(`All  (${allData.length.toLocaleString()})`, true, ()=>{ setTab(allBtn); updateDashboard('all'); });
+  c.appendChild(allBtn);
+  months.forEach(mk => {
+    const cnt = allData.filter(r=>r.monthKey===mk).length;
+    const lbl = allData.find(r=>r.monthKey===mk)?.monthLabel||mk;
+    const b = mkTab(`${lbl}  (${cnt.toLocaleString()})`, false, ()=>{ setTab(b); updateDashboard(mk); });
+    c.appendChild(b);
+  });
+}
+function mkTab(text, active, fn) {
+  const b = document.createElement('button');
+  b.className = 'mtab'+(active?' active':'');
+  b.textContent = text;
+  b.addEventListener('click', fn);
+  return b;
+}
+function setTab(el) {
+  document.querySelectorAll('.mtab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ═══ UPDATE ═══════════════════════════════════════════════════════════
+function updateDashboard(mk) {
+  activeMonth = mk;
+  filteredData = mk==='all' ? allData : allData.filter(r=>r.monthKey===mk);
+  updateSummary();
+  renderSites();
+  populateDeviceSitePicker();
+  renderDevices();
+  renderSpotlight();
+  populateTimeSitePicker();
+  renderTimeAnalysis();
+  renderSuggestions();
+  renderTable();
+}
+
+// ═══ SUMMARY ══════════════════════════════════════════════════════════
+function updateSummary() {
+  const d = filteredData;
+  const sites   = new Set(d.map(r=>r.site)).size;
+  const devices = new Set(d.map(r=>r.site+'||'+r.deviceName)).size;
+  const disp    = d.filter(r=>r.dispatch.toLowerCase()==='yes').length;
+  const sorted  = [...d].sort((a,b)=>a.date-b.date);
+  const mn = sorted[0]?.date, mx = sorted[sorted.length-1]?.date;
+  const days = mn&&mx ? Math.max(1,Math.ceil((mx-mn)/864e5)+1) : 1;
+  const avg = (d.length/days).toFixed(1);
+  const fmt = dt=>dt?.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})||'—';
+
+  $('statTotal',   d.length.toLocaleString());
+  $('statTotalSub',`~${avg} alarms / day`);
+  $('statSites',   sites.toLocaleString());
+  $('statSitesSub',`over ${days} day${days!==1?'s':''}`);
+  $('statDevices', devices.toLocaleString());
+  $('statDevicesSub','unique site + device combos');
+  $('statDispatch', disp.toLocaleString());
+  $('statDispatchSub',`${pct(disp,d.length)}% of alarms escalated`);
+  $('dateRange',   `${fmt(mn)} – ${fmt(mx)}  ·  ${d.length.toLocaleString()} total alarms`);
+  $('reportTitle', `Alarm Analysis — ${mk('all')?'All Time':(filteredData[0]?.monthLabel||activeMonth)}`);
+}
+function mk(v){ return activeMonth===v; }
+
+// ═══ TOP SITES ════════════════════════════════════════════════════════
+function renderSites() {
+  const d = filteredData;
+  const siteCounts = countBy(d,'site');
+  const ranked = topN(siteCounts, 40);
+  const maxCount = ranked[0]?.[1] || 1;
+
+  function rowHtml(entry, i) {
+    const [site, count] = entry;
+    const siteData = d.filter(r=>r.site===site);
+    const topDevName = topN(countBy(siteData,'deviceName'),1)[0]?.[0] || '—';
+    const topDevType = siteData.find(r=>r.deviceName===topDevName)?.deviceType || '—';
+    const hrs = Array(24).fill(0); siteData.forEach(r=>hrs[r.hour]++);
+    const peakHr = hrs.indexOf(Math.max(...hrs));
+    const state = siteData[0]?.state || '?';
+    const barW = Math.round((count/maxCount)*100);
+    return `<tr>
+      <td class="rank-num">${i+1}</td>
+      <td><span class="state-badge">${state}</span><span class="rank-name">${trunc(site.replace(/^[A-Z]{2}\s/,''),32)}</span></td>
+      <td class="count-bold">${count.toLocaleString()}</td>
+      <td class="pct-soft">${pct(count,d.length)}%</td>
+      <td style="font-size:11px;color:#64748B">${trunc(topDevName,20)}</td>
+      <td><span class="badge b-gray">${topDevType}</span></td>
+      <td><span class="peak-chip">${fmtHr(peakHr)}</span></td>
+      <td class="mini-bar-wrap"><div class="mini-bar" style="width:${barW}%"></div></td>
+    </tr>`;
+  }
+
+  $('sitesBody', ranked.map((e,i)=>rowHtml(e,i)).join(''));
+}
+
+// ═══ TOP DEVICES ══════════════════════════════════════════════════════
+function populateDeviceSitePicker() {
+  const picker = document.getElementById('deviceSitePicker');
+  const siteCounts = countBy(filteredData,'site');
+  const ranked = topN(siteCounts, 999);
+  picker.innerHTML = `<option value="all">All Sites (${filteredData.length.toLocaleString()})</option>`
+    + ranked.map(([s,c])=>`<option value="${s.replace(/"/g,'&quot;')}">${trunc(s,45)} (${c.toLocaleString()})</option>`).join('');
+}
+document.getElementById('deviceSitePicker').addEventListener('change', renderDevices);
+
+function renderDevices() {
+  const sel = document.getElementById('deviceSitePicker').value;
+  const d = sel === 'all' ? filteredData : filteredData.filter(r=>r.site===sel);
+  // Each site+device pair is unique
+  const comboCounts = {};
+  d.forEach(r=>{ const k=r.site+'||'+r.deviceName; comboCounts[k]=(comboCounts[k]||0)+1; });
+  const ranked = topN(comboCounts, 40);
+  const maxCount = ranked[0]?.[1] || 1;
+
+  function rowHtml(entry, i) {
+    const [key, count] = entry;
+    const [site, dev] = key.split('||');
+    const devData = d.filter(r=>r.site===site && r.deviceName===dev);
+    const devType = devData[0]?.deviceType || '—';
+    const hrs = Array(24).fill(0); devData.forEach(r=>hrs[r.hour]++);
+    const peakHr = hrs.indexOf(Math.max(...hrs));
+    const state = devData[0]?.state || '?';
+    const barW = Math.round((count/maxCount)*100);
+    return `<tr>
+      <td class="rank-num">${i+1}</td>
+      <td class="rank-name">${trunc(dev,34)}</td>
+      <td><span class="badge b-gray">${devType}</span></td>
+      <td style="font-size:11px;color:#64748B"><span class="state-badge">${state}</span>${trunc(site.replace(/^[A-Z]{2}\s/,''),22)}</td>
+      <td class="count-bold">${count.toLocaleString()}</td>
+      <td class="pct-soft">${pct(count,d.length)}%</td>
+      <td><span class="peak-chip">${fmtHr(peakHr)}</span></td>
+      <td class="mini-bar-wrap"><div class="mini-bar" style="width:${barW}%"></div></td>
+    </tr>`;
+  }
+
+  $('devicesBody', ranked.map((e,i)=>rowHtml(e,i)).join(''));
+}
+
+// ═══ SPOTLIGHT ════════════════════════════════════════════════════════
+function renderSpotlight() {
+  const d = filteredData;
+  // Top site+device combo
+  const comboCounts = {};
+  d.forEach(r=>{ const k=r.site+'|||'+r.deviceName; comboCounts[k]=(comboCounts[k]||0)+1; });
+  const [topCombo, topCount] = topN(comboCounts,1)[0] || ['',0];
+  if (!topCombo) return;
+  const [site, device] = topCombo.split('|||');
+  const comboData = d.filter(r=>r.site===site && r.deviceName===device);
+
+  // Hour dist for this combo
+  const hrs = Array(24).fill(0); comboData.forEach(r=>hrs[r.hour]++);
+  const peakHr = hrs.indexOf(Math.max(...hrs));
+  // DOW dist
+  const days = Array(7).fill(0); comboData.forEach(r=>days[r.dow]++);
+  const wkndCount = comboData.filter(r=>r.isWeekend).length;
+  const avgPerDay = (topCount / Math.max(1, new Set(comboData.map(r=>r.date.toDateString())).size)).toFixed(1);
+
+  $('spotlightSub', `Worst offender: <strong>${trunc(site,50)}</strong> → <strong>${device}</strong>`);
+
+  $('spotlightStats', `
+    <div class="stat-box">
+      <div class="stat-box-label">Total Alarms</div>
+      <div class="stat-box-val">${topCount}</div>
+      <div class="stat-box-sub">${pct(topCount,d.length)}% of period total</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-box-label">Avg per Active Day</div>
+      <div class="stat-box-val">${avgPerDay}</div>
+      <div class="stat-box-sub">alarms / day</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-box-label">Peak Hour</div>
+      <div class="stat-box-val">${fmtHr(peakHr)}</div>
+      <div class="stat-box-sub">${hrs[peakHr]} alarms at this hour</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-box-label">Weekend Share</div>
+      <div class="stat-box-val">${pct(wkndCount,topCount)}%</div>
+      <div class="stat-box-sub">${wkndCount} weekend alarms</div>
+    </div>
+  `);
+
+  // Generate specific recommendation
+  const earlyMorning = comboData.filter(r=>r.hour>=4&&r.hour<7).length;
+  const evening = comboData.filter(r=>r.hour>=17&&r.hour<21).length;
+  const isExterior = comboData[0]?.partition.toLowerCase().includes('exterior');
+  const isPTZ = device.toUpperCase().includes('PTZ');
+
+  let rec = `<div class="spotlight-rec">
+    <div class="spotlight-rec-label">🔧 Recommendation</div>
+    <div class="spotlight-rec-text">`;
+  if (earlyMorning/topCount > 0.25) {
+    rec += `<strong>${pct(earlyMorning,topCount)}% of alarms fire 4–7 AM</strong> — schedule a sensitivity suppression window during early morning hours. `;
+  }
+  if (isPTZ) {
+    rec += `PTZ camera naming suggests wide-angle yard/lot coverage — a prime false positive source. Consider enabling <strong>person-detection only</strong> mode and adding motion exclusion zones for the roadway. `;
+  }
+  if (isExterior && !isPTZ) {
+    rec += `As an exterior camera, it is exposed to wind, wildlife, and passing vehicles. <strong>Raise the motion sensitivity threshold</strong> or require person-detection confirmation before triggering. `;
+  }
+  if (evening/topCount > 0.25) {
+    rec += `<strong>${pct(evening,topCount)}% of alarms occur 5–9 PM</strong> — investigate if this is shift departure/gate traffic that can be scheduled out. `;
+  }
+  rec += `</div></div>`;
+  $('spotlightRec', rec);
+
+  // Render spotlight charts
+  destroyChart('spotlightHourChart');
+  const hCtx = document.getElementById('spotlightHourChart').getContext('2d');
+  charts['spotlightHourChart'] = new Chart(hCtx, {
+    type:'bar',
+    data:{
+      labels: Array.from({length:24},(_,i)=>i%4===0?fmtHrShort(i):''),
+      datasets:[{ data:hrs, backgroundColor: barColorsByIntensity(hrs), borderRadius:3 }]
+    },
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:9}}},y:{grid:{color:'#F1F5F9'},ticks:{font:{size:9}},min:0}} }
+  });
+
+  destroyChart('spotlightDowChart');
+  const dCtx = document.getElementById('spotlightDowChart').getContext('2d');
+  charts['spotlightDowChart'] = new Chart(dCtx, {
+    type:'bar',
+    data:{
+      labels:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],
+      datasets:[{ data:days, backgroundColor: barColorsByIntensity(days), borderRadius:3 }]
+    },
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:9}}},y:{grid:{color:'#F1F5F9'},ticks:{font:{size:9}},min:0}} }
+  });
+}
+
+// ═══ TIME ANALYSIS SITE PICKER ════════════════════════════════════════
+function getTimeData() {
+  const sel = document.getElementById('timeSitePicker').value;
+  return sel === 'all' ? filteredData : filteredData.filter(r=>r.site===sel);
+}
+function populateTimeSitePicker() {
+  const picker = document.getElementById('timeSitePicker');
+  const siteCounts = countBy(filteredData,'site');
+  const ranked = topN(siteCounts, 999);
+  picker.innerHTML = `<option value="all">All Sites (${filteredData.length.toLocaleString()})</option>`
+    + ranked.map(([s,c])=>`<option value="${s.replace(/"/g,'&quot;')}">${trunc(s,45)} (${c.toLocaleString()})</option>`).join('');
+}
+function renderTimeAnalysis() {
+  renderHoursChart();
+  renderDowChart();
+  renderTrendChart();
+  renderHeatmap();
+  renderWorstHours();
+}
+document.getElementById('timeSitePicker').addEventListener('change', renderTimeAnalysis);
+
+// ═══ HOURS CHART ══════════════════════════════════════════════════════
+function renderHoursChart() {
+  destroyChart('hoursChart');
+  const td = getTimeData();
+  const hrs = Array(24).fill(0);
+  td.forEach(r=>hrs[r.hour]++);
+  const ctx = document.getElementById('hoursChart').getContext('2d');
+  charts['hoursChart'] = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels: Array.from({length:24},(_,i)=>i%3===0?fmtHrShort(i):''),
+      datasets:[{ data:hrs, backgroundColor: barColorsByIntensity(hrs), borderRadius:3 }]
+    },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ x:{grid:{display:false},ticks:{font:{size:9}}}, y:{grid:{color:'#F1F5F9'},ticks:{font:{size:10}},min:0} } }
+  });
+}
+
+// ═══ WORST HOURS BOX ══════════════════════════════════════════════════
+function renderWorstHours() {
+  const td = getTimeData();
+  const hrs = Array(24).fill(0);
+  td.forEach(r=>hrs[r.hour]++);
+  const sorted = hrs.map((v,i)=>({h:i,v})).sort((a,b)=>b.v-a.v);
+  const top8 = sorted.slice(0,8);
+  const maxV = top8[0]?.v||1;
+  $('worstHoursContent', top8.map(({h,v})=>`
+    <div class="worst-hour-row">
+      <div class="worst-hour-chip">${fmtHr(h)}</div>
+      <div class="worst-hour-bar"><div class="worst-hour-bar-fill" style="width:${Math.round(v/maxV*100)}%"></div></div>
+      <div class="worst-hour-count">${v.toLocaleString()} alarms</div>
+    </div>`).join(''));
+}
+
+// ═══ DAY OF WEEK ══════════════════════════════════════════════════════
+function renderDowChart() {
+  destroyChart('dowChart');
+  const td = getTimeData();
+  const counts = Array(7).fill(0);
+  td.forEach(r=>counts[r.dow]++);
+  const ctx = document.getElementById('dowChart').getContext('2d');
+  charts['dowChart'] = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],
+      datasets:[{ data:counts, backgroundColor: barColorsByIntensity(counts), borderRadius:3 }]
+    },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ x:{grid:{display:false},ticks:{font:{size:10}}}, y:{grid:{color:'#F1F5F9'},ticks:{font:{size:10}},min:0} } }
+  });
+}
+
+// ═══ TREND ════════════════════════════════════════════════════════════
+function renderTrendChart() {
+  destroyChart('trendChart');
+  const td = getTimeData();
+  const dayCnts = {};
+  td.forEach(r=>{ const k=r.date.toISOString().split('T')[0]; dayCnts[k]=(dayCnts[k]||0)+1; });
+  const sorted = Object.entries(dayCnts).sort((a,b)=>a[0].localeCompare(b[0]));
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  charts['trendChart'] = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels: sorted.map(([d])=>{ const dt=new Date(d+'T12:00:00'); return dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}); }),
+      datasets:[{ data:sorted.map(([,v])=>v), borderColor:'#2563EB', backgroundColor:'rgba(37,99,235,0.08)', fill:true, tension:0.35, pointRadius:4, pointBackgroundColor:'#2563EB', pointBorderColor:'#fff', pointBorderWidth:2 }]
+    },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ x:{grid:{display:false},ticks:{font:{size:9},maxRotation:30}}, y:{grid:{color:'#F1F5F9'},ticks:{font:{size:10}},min:0} } }
+  });
+}
+
+// ═══ HEATMAP ══════════════════════════════════════════════════════════
+function renderHeatmap() {
+  const DAY = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const td = getTimeData();
+  const grid = Array.from({length:7},()=>Array(24).fill(0));
+  td.forEach(r=>grid[r.dow][r.hour]++);
+  const max = Math.max(...grid.flat());
+
+  let html = '<div class="hmap-hour-row">';
+  for(let h=0;h<24;h++) html+=`<div class="hmap-hlabel">${h%6===0?fmtHrShort(h):''}</div>`;
+  html+='</div>';
+
+  const dayTotals = grid.map(row=>row.reduce((a,b)=>a+b,0));
+  const maxDay = Math.max(...dayTotals)||1;
+  DAY.forEach((day,di)=>{
+    const dt = dayTotals[di]/maxDay;
+    const dlColor = dt>0.7?'#EF4444':dt>0.4?'#D97706':'#64748B';
+    html+=`<div class="hmap-row"><div class="hmap-dlabel" style="color:${dlColor}">${day}</div>`;
+    for(let h=0;h<24;h++){
+      const v=grid[di][h];
+      html+=`<div class="hmap-cell" style="background:${heatColor(v,max)}" title="${day} ${fmtHr(h)}: ${v} alarm${v!==1?'s':''}"></div>`;
+    }
+    html+='</div>';
+  });
+  document.getElementById('heatmapWrap').innerHTML = html;
+}
+function heatColor(v,max){ if(!max||!v) return '#F1F5F9'; const t=v/max; const f=[239,246,255],to=[29,78,216]; return `rgb(${r(f[0],to[0],t)},${r(f[1],to[1],t)},${r(f[2],to[2],t)})`; }
+function r(a,b,t){ return Math.round(a+t*(b-a)); }
+
+// ═══ SUGGESTIONS ══════════════════════════════════════════════════════
+function renderSuggestions() {
+  const d = filteredData;
+  const sugs = [];
+  const siteCounts = countBy(d,'site');
+  const devCounts  = countBy(d,'deviceName');
+  const avgSite    = d.length / Math.max(1,Object.keys(siteCounts).length);
+  const hrs        = Array(24).fill(0); d.forEach(r=>hrs[r.hour]++);
+  const earlyMorn  = d.filter(r=>r.hour>=4&&r.hour<7).length;
+  const lateNight  = d.filter(r=>r.hour<4).length;
+  const evening    = d.filter(r=>r.hour>=17&&r.hour<21).length;
+  const wknd       = d.filter(r=>r.isWeekend).length;
+  const wkdy       = d.length - wknd;
+  const extCount   = d.filter(r=>r.partition.toLowerCase().includes('exterior')).length;
+  const ptzCount   = d.filter(r=>r.deviceName.toUpperCase().includes('PTZ')).length;
+
+  // Build devSites map
+  const devSites = {};
+  d.forEach(r=>{ if(!devSites[r.deviceName]) devSites[r.deviceName]=new Set(); devSites[r.deviceName].add(r.site); });
+
+  // RULE 1: Early morning surge
+  if (earlyMorn/d.length > 0.18) {
+    sugs.push({p:'high', icon:'⏰', title:'Schedule Early Morning Suppression (4–7 AM)',
+      insight:`<strong>${pct(earlyMorn,d.length)}% of all alarms</strong> fire between 4–7 AM (${earlyMorn.toLocaleString()} alarms). This window likely corresponds to shift starts, gate openings, or dawn lighting changes triggering motion detection.`,
+      action:'Create a 4:00–7:00 AM scheduled suppression or reduced-sensitivity window at your highest-volume sites. Start with the top 10 sites by volume — this could eliminate up to 30% of alarm noise immediately.'
+    });
+  }
+
+  // RULE 2: Site outliers (>3x average)
+  const outliers = topN(siteCounts,3).filter(([,v])=>v>avgSite*2.5);
+  outliers.slice(0,2).forEach(([site,count])=>{
+    sugs.push({p:'high', icon:'🏭', title:`Site Audit Required: ${trunc(site,40)}`,
+      insight:`This site fired <strong>${count} alarms</strong> — <strong>${(count/avgSite).toFixed(1)}×</strong> the average site. It is a significant outlier and warrants hands-on review of camera configurations.`,
+      action:'Schedule an on-site visit to review camera angles, sensitivity settings, and partition zone definitions. Check if cameras face roads, trees, or areas with frequent non-security motion.'
+    });
+  });
+
+  // RULE 3: PTZ cameras
+  if (ptzCount/d.length > 0.1) {
+    sugs.push({p:'high', icon:'📷', title:'PTZ Camera Sensitivity Review',
+      insight:`PTZ cameras account for <strong>${ptzCount.toLocaleString()} alarms (${pct(ptzCount,d.length)}%)</strong>. Wide-angle PTZ cameras covering yards and parking areas are the most common source of false positives — wind, vehicles, and wildlife all trigger them easily.`,
+      action:'Enable person-detection-only mode on all exterior PTZ cameras. Add motion exclusion zones for roadways, fences, and tree lines. Consider requiring 2+ seconds of motion before triggering an alarm.'
+    });
+  }
+
+  // RULE 4: Exterior dominance
+  if (extCount/d.length > 0.78) {
+    sugs.push({p:'medium', icon:'🌳', title:'Exterior Camera Configuration Audit',
+      insight:`<strong>${pct(extCount,d.length)}%</strong> of alarms originate from exterior cameras. Outdoor environments are inherently noisy — wind-blown objects, passing vehicles, and animals are the most common false positive sources.`,
+      action:'Audit all exterior cameras for: (1) motion sensitivity levels — reduce if currently at default, (2) exclusion zones for known non-security motion areas, (3) minimum object size thresholds if supported, (4) person-detection mode where available.'
+    });
+  }
+
+  // RULE 5: Evening pattern
+  if (evening/d.length > 0.2) {
+    sugs.push({p:'medium', icon:'🌆', title:'Evening Activity Pattern (5–9 PM)',
+      insight:`<strong>${pct(evening,d.length)}%</strong> of alarms fire during the 5–9 PM window. This often corresponds to end-of-day activity — employees leaving, gates being secured, vehicles departing.`,
+      action:'Review whether end-of-day site activity can be temporarily excluded via a scheduled exception. Coordinate with site managers on typical close-down times and build those into camera schedules.'
+    });
+  }
+
+  // RULE 6: Widespread device name pattern
+  const widespread = topN(
+    Object.fromEntries(Object.entries(devSites).map(([k,v])=>[k,v.size])), 5
+  ).filter(([,v])=>v>=5);
+  if (widespread.length) {
+    const [dev, siteCount] = widespread[0];
+    sugs.push({p:'medium', icon:'🔁', title:`Global Fix Opportunity: Camera Named "${trunc(dev,30)}"`,
+      insight:`A camera named <strong>"${dev}"</strong> is triggering alarms at <strong>${siteCount} different sites</strong>. This is likely a standard naming convention representing a specific camera type or placement — a single configuration template change could reduce volume across all sites simultaneously.`,
+      action:`Identify the camera model and position associated with "${dev}" across sites. Apply a consistent updated config: increased sensitivity threshold, exclusion zones, or person-detection mode. Push as a bulk update to all ${siteCount} sites.`
+    });
+  }
+
+  // RULE 7: Weekend spike
+  const wkndDailyAvg = wknd/2, wkdyDailyAvg = wkdy/5;
+  if (wkndDailyAvg > wkdyDailyAvg * 1.25) {
+    sugs.push({p:'medium', icon:'📅', title:'Weekend Alarm Spike — Schedule Optimization',
+      insight:`Weekend daily average (<strong>${Math.round(wkndDailyAvg)} alarms/day</strong>) is significantly higher than weekday average (${Math.round(wkdyDailyAvg)}/day). Sites are often understaffed on weekends, creating unusual motion patterns.`,
+      action:'Create weekend-specific alarm schedules with tighter detection zones. Consider higher-confidence thresholds (person detection) on weekends, or route weekend alarms to an on-call team for faster response.'
+    });
+  }
+
+  // RULE 8: Late night
+  if (lateNight/d.length > 0.08) {
+    sugs.push({p:'low', icon:'🌙', title:'Late Night Activity (12–4 AM)',
+      insight:`<strong>${lateNight.toLocaleString()} alarms (${pct(lateNight,d.length)}%)</strong> fire between midnight and 4 AM. While legitimate security events are possible, IR lighting artifacts, wildlife, and weather are common overnight false positive sources.`,
+      action:'Review overnight alarms at the top 5 late-night sites. Enable person-detection-only overnight. Evaluate whether IR camera sensitivity needs tuning for nighttime conditions. Flag any repeat overnight alarms at the same device for immediate camera inspection.'
+    });
+  }
+
+  // RULE 9: Zero dispatch
+  const dispCount = d.filter(r=>r.dispatch.toLowerCase()==='yes').length;
+  if (dispCount === 0) {
+    sugs.push({p:'low', icon:'🚨', title:'Zero Dispatches — Review Escalation Criteria',
+      insight:`<strong>0% of alarms resulted in a dispatch request</strong> in this period. While this may be intentional for self-monitored sites, it also means no alarm has been elevated to emergency services — even potentially legitimate ones.`,
+      action:'Review escalation criteria with the monitoring team. Define clear rules for when an alarm should trigger a dispatch (e.g., alarms outside business hours, multiple triggers in short succession, specific high-security zones). Consider implementing auto-escalation for overnight alarms at critical sites.'
+    });
+  }
+
+  const priorityOrder = {high:0, medium:1, low:2};
+  sugs.sort((a,b)=>priorityOrder[a.p]-priorityOrder[b.p]);
+
+  const colors = {high:'sug-high', medium:'sug-medium', low:'sug-low'};
+  const labels = {high:'🔴 High Priority', medium:'🟡 Medium Priority', low:'🟢 Low Priority'};
+  const labelCls = {high:'sug-priority-high', medium:'sug-priority-medium', low:'sug-priority-low'};
+
+  $('suggestionsGrid', sugs.map(s=>`
+    <div class="sug-card ${colors[s.p]}">
+      <div class="sug-header">
+        <div class="sug-icon">${s.icon}</div>
+        <div class="sug-title-wrap">
+          <div class="sug-priority ${labelCls[s.p]}">${labels[s.p]}</div>
+          <div class="sug-title">${s.title}</div>
+        </div>
+      </div>
+      <div class="sug-insight">${s.insight}</div>
+      <div class="sug-action-label">Recommended Action</div>
+      <div class="sug-action">${s.action}</div>
+    </div>`).join(''));
+}
+
+// ═══ TABLE ════════════════════════════════════════════════════════════
+function renderTable(search='') {
+  let d = filteredData;
+  if(search){ const q=search.toLowerCase(); d=d.filter(r=>r.site.toLowerCase().includes(q)||r.deviceName.toLowerCase().includes(q)||r.partition.toLowerCase().includes(q)||r.state.toLowerCase().includes(q)); }
+  const rows = d.slice(0,200);
+  $('tableCaption',`Showing ${rows.length.toLocaleString()} of ${d.length.toLocaleString()} records${search?' (filtered)':''}`);
+  $('tableBody', rows.map(r=>`<tr>
+    <td style="white-space:nowrap">${r.dateStr} ${r.timeStr}</td>
+    <td>${r.site}</td>
+    <td><span class="badge ${r.partition.toLowerCase().includes('exterior')?'b-blue':'b-green'}">${r.partition}</span></td>
+    <td>${r.deviceName}</td>
+    <td><span class="badge b-gray">${r.deviceType}</span></td>
+    <td style="font-size:11px">${r.alarmResponse}</td>
+    <td>${r.dispatch.toLowerCase()==='yes'?'<span class="badge b-red">Yes</span>':'<span class="badge b-green">No</span>'}</td>
+  </tr>`).join(''));
+}
+document.getElementById('tableSearch').addEventListener('input',function(){ renderTable(this.value.trim()); });
+
+// ═══ UTILITIES ════════════════════════════════════════════════════════
+function countBy(data,field){ const c={}; data.forEach(r=>{ const k=r[field]||'Unknown'; c[k]=(c[k]||0)+1; }); return c; }
+function topN(counts,n){ return Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,n); }
+function barColorsByIntensity(vals){
+  const mx=Math.max(...vals)||1;
+  return vals.map(v=>{
+    if(!v) return '#E2E8F0';
+    const t=v/mx;
+    // blue (#2563EB) -> orange (#F59E0B) -> red (#EF4444)
+    if(t<0.5){ const s=t/0.5; return `rgb(${r(37,245,s)},${r(99,158,s)},${r(235,11,s)})`; }
+    const s=(t-0.5)/0.5; return `rgb(${r(245,239,s)},${r(158,68,s)},${r(11,68,s)})`;
+  });
+}
+function destroyChart(id){ if(charts[id]){charts[id].destroy();delete charts[id];} }
+function trunc(s,n){ return s&&s.length>n?s.substring(0,n)+'…':(s||''); }
+function pct(n,t){ if(!t)return 0; return ((n/t)*100).toFixed(0); }
+function fmtHr(h){ if(h===0)return '12 AM'; if(h===12)return '12 PM'; return h<12?`${h} AM`:`${h-12} PM`; }
+function fmtHrShort(h){ if(h===0)return '12A'; if(h===12)return '12P'; return h<12?`${h}A`:`${h-12}P`; }
+function $(id,val){ const el=document.getElementById(id); if(el)el.innerHTML=val; }
+</script>
+</body>
+</html>
