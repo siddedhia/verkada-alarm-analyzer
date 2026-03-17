@@ -453,7 +453,8 @@ function processFile(file) {
       document.getElementById('dashboard').style.display = 'block';
       document.getElementById('uploadNewBtn').style.display = 'inline-block';
       buildMonthTabs();
-      updateDashboard('all');
+      const months = [...new Set(allData.map(r=>r.monthKey))].sort();
+      updateDashboard(months.length ? months[months.length-1] : 'all');
     },
     error(e) { alert('CSV parse error: ' + e.message); }
   });
@@ -492,12 +493,14 @@ function buildMonthTabs() {
   const months = [...new Set(allData.map(r=>r.monthKey))].sort();
   const c = document.getElementById('monthTabs');
   c.innerHTML = '';
-  const allBtn = mkTab(`All  (${allData.length.toLocaleString()})`, true, ()=>{ setTab(allBtn); updateDashboard('all'); });
+  const latestMonth = months.length ? months[months.length-1] : null;
+  const allBtn = mkTab(`All  (${allData.length.toLocaleString()})`, false, ()=>{ setTab(allBtn); updateDashboard('all'); });
   c.appendChild(allBtn);
   months.forEach(mk => {
     const cnt = allData.filter(r=>r.monthKey===mk).length;
     const lbl = allData.find(r=>r.monthKey===mk)?.monthLabel||mk;
-    const b = mkTab(`${lbl}  (${cnt.toLocaleString()})`, false, ()=>{ setTab(b); updateDashboard(mk); });
+    const isLatest = mk === latestMonth;
+    const b = mkTab(`${lbl}  (${cnt.toLocaleString()})`, isLatest, ()=>{ setTab(b); updateDashboard(mk); });
     c.appendChild(b);
   });
 }
@@ -588,8 +591,9 @@ function populateDeviceSitePicker() {
   const picker = document.getElementById('deviceSitePicker');
   const siteCounts = countBy(filteredData,'site');
   const ranked = topN(siteCounts, 999);
+  const topSite = ranked[0]?.[0] || '';
   picker.innerHTML = `<option value="all">All Sites (${filteredData.length.toLocaleString()})</option>`
-    + ranked.map(([s,c])=>`<option value="${s.replace(/"/g,'&quot;')}">${trunc(s,45)} (${c.toLocaleString()})</option>`).join('');
+    + ranked.map(([s,c])=>`<option value="${s.replace(/"/g,'&quot;')}"${s===topSite?' selected':''}>${trunc(s,45)} (${c.toLocaleString()})</option>`).join('');
 }
 document.getElementById('deviceSitePicker').addEventListener('change', renderDevices);
 
@@ -635,8 +639,9 @@ function populateTimeSitePicker() {
   const picker = document.getElementById('timeSitePicker');
   const siteCounts = countBy(filteredData,'site');
   const ranked = topN(siteCounts, 999);
+  const topSite = ranked[0]?.[0] || '';
   picker.innerHTML = `<option value="all">All Sites (${filteredData.length.toLocaleString()})</option>`
-    + ranked.map(([s,c])=>`<option value="${s.replace(/"/g,'&quot;')}">${trunc(s,45)} (${c.toLocaleString()})</option>`).join('');
+    + ranked.map(([s,c])=>`<option value="${s.replace(/"/g,'&quot;')}"${s===topSite?' selected':''}>${trunc(s,45)} (${c.toLocaleString()})</option>`).join('');
 }
 function renderTimeAnalysis() {
   renderHoursChart();
