@@ -244,7 +244,7 @@ tr:hover td{background:#F8FAFC}
 <body>
 
 <!-- ══════════════════════ VERSION ════════════════════════════════════ -->
-<div style="position:fixed;bottom:8px;right:12px;font-size:10px;color:#94A3B8;z-index:10;pointer-events:none">v0.2</div>
+<div style="position:fixed;bottom:8px;right:12px;font-size:10px;color:#94A3B8;z-index:10;pointer-events:none">v0.3</div>
 
 <!-- ══════════════════════ LOADING ═══════════════════════════════════ -->
 <div class="loading-overlay" id="loadingOverlay" style="display:none">
@@ -256,7 +256,7 @@ tr:hover td{background:#F8FAFC}
 <!-- ══════════════════════ HEADER ══════════════════════════════════ -->
 <div class="header">
   <div>
-    <h1>🔔 Alarm Events Analyzer <span style="font-size:11px;font-weight:500;color:#64748B;margin-left:4px">v0.2</span></h1>
+    <h1>🔔 Alarm Events Analyzer <span style="font-size:11px;font-weight:500;color:#64748B;margin-left:4px">v0.3</span></h1>
     <div class="tagline">Upload a Verkada alarm CSV export · Instant site, device & time analysis</div>
   </div>
   <div class="header-right">
@@ -738,11 +738,10 @@ function renderSites() {
     const topDevType = siteData.find(r=>r.deviceName===topDevName)?.deviceType || '—';
     const hrs = Array(24).fill(0); siteData.forEach(r=>hrs[r.hour]++);
     const peakHr = hrs.indexOf(Math.max(...hrs));
-    const state = siteData[0]?.state || '?';
     const barW = Math.round((count/maxCount)*100);
     return `<tr>
       <td class="rank-num">${i+1}</td>
-      <td><span class="state-badge">${state}</span><span class="rank-name">${trunc(site.replace(/^[A-Z]{2}\s/,''),32)}</span></td>
+      <td><span class="rank-name">${trunc(site,32)}</span></td>
       <td class="count-bold">${count.toLocaleString()}</td>
       <td class="pct-soft">${pct(count,d.length)}%</td>
       <td style="font-size:11px;color:#64748B">${trunc(topDevName,20)}</td>
@@ -782,13 +781,12 @@ function renderDevices() {
     const devType = devData[0]?.deviceType || '—';
     const hrs = Array(24).fill(0); devData.forEach(r=>hrs[r.hour]++);
     const peakHr = hrs.indexOf(Math.max(...hrs));
-    const state = devData[0]?.state || '?';
     const barW = Math.round((count/maxCount)*100);
     return `<tr>
       <td class="rank-num">${i+1}</td>
       <td class="rank-name">${trunc(dev,34)}</td>
       <td><span class="badge b-gray">${devType}</span></td>
-      <td style="font-size:11px;color:#64748B"><span class="state-badge">${state}</span>${trunc(site.replace(/^[A-Z]{2}\s/,''),22)}</td>
+      <td style="font-size:11px;color:#64748B">${trunc(site,22)}</td>
       <td class="count-bold">${count.toLocaleString()}</td>
       <td class="pct-soft">${pct(count,d.length)}%</td>
       <td><span class="peak-chip">${fmtHr(peakHr)}</span></td>
